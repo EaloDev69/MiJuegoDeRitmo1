@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.mycompany</groupId>
+    <artifactId>MiJuegoDeRitmo1</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>24</maven.compiler.release>
+        <exec.mainClass>com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo</exec.mainClass>
+    </properties>
+    
+    <dependencies>
+    <!-- jMonkeyEngine Core -->
+    <dependency>
+        <groupId>org.jmonkeyengine</groupId>
+        <artifactId>jme3-core</artifactId>
+        <version>3.6.1-stable</version>
+    </dependency>
+    
+    <!-- jMonkeyEngine Desktop -->
+    <dependency>
+        <groupId>org.jmonkeyengine</groupId>
+        <artifactId>jme3-desktop</artifactId>
+        <version>3.6.1-stable</version>
+    </dependency>
+    
+    <!-- jMonkeyEngine LWJGL3 (sistema de ventanas) -->
+    <dependency>
+        <groupId>org.jmonkeyengine</groupId>
+        <artifactId>jme3-lwjgl3</artifactId>
+        <version>3.6.1-stable</version>
+    </dependency>
+    
+    <!-- Lemur (UI) -->
+    <dependency>
+        <groupId>com.simsilica</groupId>
+        <artifactId>lemur</artifactId>
+        <version>1.16.0</version>
+    </dependency>
+    
+    <!-- Lemur Proto (estilos adicionales) -->
+    <dependency>
+        <groupId>com.simsilica</groupId>
+        <artifactId>lemur-proto</artifactId>
+        <version>1.13.0</version>
+    </dependency>
+</dependencies>
+</project>
