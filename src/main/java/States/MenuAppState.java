@@ -14,6 +14,8 @@ import java.io.File;
 import java.nio.file.Paths;
 import java.util.*;
 import javax.swing.SwingUtilities;
+import Modelo.AnalizadorCanciones;
+import UI.VentanaCargaCanciones;
 
 public class MenuAppState extends BaseAppState {
 
@@ -216,11 +218,12 @@ public class MenuAppState extends BaseAppState {
 
     private void mostrarInstrucciones() {
         String instrucciones =
-                "1. Coloca archivos .wav en:\n" +
-                "   MiJuegoDeRitmo1/assets/canciones                                        " + "2. Presiona 'Seleccionar Canciones'\n                                                                                    para elegir cuales jugar" +
+                "1. Coloca archivos .wav en:\n" 
+                + "MiJuegoDeRitmo1/assets/canciones\n\n" + 
+                "2. Presiona 'Seleccionar Canciones'\n"
+                + " para elegir cuales jugar" +
                 "   \n\n" +
-                "\n" +
-          "4. Presiona 'EMPEZAR JUEGO'";
+                "3. Presiona 'EMPEZAR JUEGO'";
         
  
         
@@ -265,29 +268,47 @@ public class MenuAppState extends BaseAppState {
     /**
      * Inicia el juego con las canciones seleccionadas (o todas)
      */
-    private void iniciarJuego() {
-        if (juego != null) {
-            List<String> lista = cancionesSeleccionadas.isEmpty()
-                    ? playlistManager.getCanciones()
-                    : new ArrayList<>(cancionesSeleccionadas);
-            
-            if (lista.isEmpty()) {
-                System.err.println("ERROR: No hay canciones!");
-                lblInstrucciones.setText("ERROR: No hay canciones .wav\nAgrega archivos a assets/canciones/");
-                lblInstrucciones.setColor(ColorRGBA.Red);
-                return;
-            }
-            
-            System.out.println("\n=== INICIANDO JUEGO ===");
-            System.out.println("Canciones a jugar: " + lista.size());
-            for (int i = 0; i < lista.size(); i++) {
-                System.out.println("  " + (i+1) + ". " + Paths.get(lista.get(i)).getFileName());
-            }
-            
-            juego.startGameplay(lista);
+private void iniciarJuego() {
+    if (juego != null) {
+        List<String> lista = cancionesSeleccionadas.isEmpty()
+                ? playlistManager.getCanciones()
+                : new ArrayList<>(cancionesSeleccionadas);
+        
+        if (lista.isEmpty()) {
+            System.err.println("ERROR: No hay canciones!");
+            lblInstrucciones.setText("ERROR: No hay canciones .wav\nAgrega archivos a assets/canciones/");
+            lblInstrucciones.setColor(ColorRGBA.Red);
+            return;
         }
+        
+        System.out.println("\n=== PREPARANDO JUEGO ===");
+        System.out.println("Canciones a analizar: " + lista.size());
+        
+        // Abrir ventana de carga
+        SwingUtilities.invokeLater(() -> {
+            java.awt.Frame parentFrame = null;
+            for (java.awt.Window window : java.awt.Window.getWindows()) {
+                if (window instanceof java.awt.Frame) {
+                    parentFrame = (java.awt.Frame) window;
+                    break;
+                }
+            }
+            
+            AnalizadorCanciones analizador = new AnalizadorCanciones(juego.getAssetManager());
+            boolean completado = VentanaCargaCanciones.mostrarYAnalizar(parentFrame, lista, analizador);
+            
+            juego.enqueue(() -> {
+                if (completado) {
+                    System.out.println("\n✓ Análisis completado - Iniciando gameplay");
+                    juego.startGameplay(lista);
+                } else {
+                    System.out.println("\n✕ Análisis cancelado");
+                }
+                return null;
+            });
+        });
     }
-
+}
     @Override
     public void update(float tpf) {
         // El volumen ahora se maneja desde la ventana separada
