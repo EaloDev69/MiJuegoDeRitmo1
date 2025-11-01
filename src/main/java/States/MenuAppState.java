@@ -1,33 +1,40 @@
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */package States;
+ */
+package States;
 
 import Modelo.PlaylistManager;
+import Modelo.AnalizadorCanciones;
+import Modelo.AnalizadorCanciones.ResultadoAnalisis;
 import com.jme3.app.Application;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.math.ColorRGBA;
 import com.simsilica.lemur.*;
-import com.simsilica.lemur.style.BaseStyles;
 import com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo;
 import java.io.File;
-import java.nio.file.Paths;
 import java.util.*;
 import javax.swing.SwingUtilities;
-import Modelo.AnalizadorCanciones;
 import UI.VentanaCargaCanciones;
 
+/**
+ * MenuAppState actualizado con el nuevo sistema de generación de flechas
+ * 
+ * @author CamiLaNekoUwU_Gamer
+ */
 public class MenuAppState extends BaseAppState {
 
     private MiJuegoDeRitmo juego;
     private Container contenedorMenu;
     private PlaylistManager playlistManager;
+    private AnalizadorCanciones analizador; // NUEVO: Instancia del analizador
     
-    // NUEVO: Guardamos la selección de canciones aquí
+    // Guardamos la selección de canciones aquí
     private final Set<String> cancionesSeleccionadas = new HashSet<>();
 
     // UI
-    private Button btnEmpezar, btnSalir, btnInstrucciones, btnAbrirCarpeta, btnSeleccionarCanciones, btnVolumen;
+    private Button btnEmpezar, btnSalir, btnInstrucciones, btnAbrirCarpeta, 
+                   btnSeleccionarCanciones, btnVolumen;
     private Label lblTitulo, lblInstrucciones, lblSeleccionCount;
     
     // Volumen guardado como entero (0-100)
@@ -40,6 +47,7 @@ public class MenuAppState extends BaseAppState {
     @Override
     protected void initialize(Application app) {
         this.juego = (MiJuegoDeRitmo) app;
+        this.analizador = new AnalizadorCanciones(app.getAssetManager()); // NUEVO: Crear analizador
         iniciarMenu(app);
     }
 
@@ -68,7 +76,7 @@ public class MenuAppState extends BaseAppState {
         lblTitulo.setInsets(new Insets3f(10, 10, 15, 10));
         contenedorMenu.addChild(lblTitulo);
         
-                // Botón empezar juego
+        // Botón empezar juego
         btnEmpezar = new Button("EMPEZAR JUEGO");
         btnEmpezar.addClickCommands(src -> iniciarJuego());
         btnEmpezar.setColor(ColorRGBA.Green);
@@ -76,45 +84,44 @@ public class MenuAppState extends BaseAppState {
         btnEmpezar.setInsets(new Insets3f(10, 20, 10, 20));
         contenedorMenu.addChild(btnEmpezar);
         
-           // Contador de canciones seleccionadas
+        // Contador de canciones seleccionadas
         lblSeleccionCount = new Label("Canciones seleccionadas: 0");
         lblSeleccionCount.setColor(ColorRGBA.Gray);
         lblSeleccionCount.setInsets(new Insets3f(5, 5, 10, 5));
         contenedorMenu.addChild(lblSeleccionCount);
         
-          btnSeleccionarCanciones = new Button("Seleccionar Canciones");
+        // Botón seleccionar canciones
+        btnSeleccionarCanciones = new Button("Seleccionar Canciones");
         btnSeleccionarCanciones.addClickCommands(src -> abrirPantallaSeleccion());
         btnSeleccionarCanciones.setColor(ColorRGBA.Yellow);
         btnSeleccionarCanciones.setFontSize(16f);
         btnSeleccionarCanciones.setInsets(new Insets3f(8, 15, 8, 15));
         contenedorMenu.addChild(btnSeleccionarCanciones);
 
+        // Botón abrir carpeta
         btnAbrirCarpeta = new Button("Abrir Carpeta Canciones");
         btnAbrirCarpeta.addClickCommands(src -> abrirCarpetaCanciones());
         contenedorMenu.addChild(btnAbrirCarpeta);
 
-        // NUEVO: Botón para abrir ventana de volumen
+        // Botón para abrir ventana de volumen
         btnVolumen = new Button("Configurar Volumen");
         btnVolumen.addClickCommands(src -> abrirVentanaVolumen());
         contenedorMenu.addChild(btnVolumen);
 
-
-
-        
-           btnInstrucciones = new Button("Instrucciones");
+        // Botón instrucciones
+        btnInstrucciones = new Button("Instrucciones");
         btnInstrucciones.addClickCommands(src -> mostrarInstrucciones());
         contenedorMenu.addChild(btnInstrucciones);
 
+        // Label instrucciones
         lblInstrucciones = new Label("");
         lblInstrucciones.setInsets(new Insets3f(10, 10, 10, 10));
         contenedorMenu.addChild(lblInstrucciones);
         
-        
-        
+        // Botón salir
         btnSalir = new Button("Salir");
         btnSalir.addClickCommands(src -> juego.stop());
         contenedorMenu.addChild(btnSalir);
-         // NUEVO: Botón para abrir pantalla de selección
     }
 
     /**
@@ -127,9 +134,7 @@ public class MenuAppState extends BaseAppState {
             try {
                 playlistManager.cargarPlaylist();
                 List<String> canciones = playlistManager.getCanciones();
-                
                 System.out.println("Playlist cargada: " + canciones.size() + " canciones");
-                
             } catch (Exception ex) {
                 System.err.println("Error al cargar: " + ex.getMessage());
                 ex.printStackTrace();
@@ -138,21 +143,14 @@ public class MenuAppState extends BaseAppState {
     }
 
     /**
-     * NUEVO: Abre ventana Swing separada para selección
+     * Abre ventana Swing separada para selección
      */
     private void abrirPantallaSeleccion() {
         System.out.println("\n>>> Abriendo ventana de seleccion...");
         
         // Ejecutar en el thread de AWT (Swing)
         SwingUtilities.invokeLater(() -> {
-            // Obtener el Frame padre (ventana principal de JME)
-            java.awt.Frame parentFrame = null;
-            for (java.awt.Window window : java.awt.Window.getWindows()) {
-                if (window instanceof java.awt.Frame) {
-                    parentFrame = (java.awt.Frame) window;
-                    break;
-                }
-            }
+            java.awt.Frame parentFrame = obtenerFramePadre();
             
             // Abrir ventana modal (bloquea hasta que se cierre)
             Set<String> nuevaSeleccion = UI.VentanaSeleccionCanciones.mostrarDialogo(
@@ -172,20 +170,13 @@ public class MenuAppState extends BaseAppState {
     }
 
     /**
-     * NUEVO: Abre ventana Swing para configurar volumen
+     * Abre ventana Swing para configurar volumen
      */
     private void abrirVentanaVolumen() {
         System.out.println("\n>>> Abriendo ventana de volumen...");
         
         SwingUtilities.invokeLater(() -> {
-            // Obtener el Frame padre
-            java.awt.Frame parentFrame = null;
-            for (java.awt.Window window : java.awt.Window.getWindows()) {
-                if (window instanceof java.awt.Frame) {
-                    parentFrame = (java.awt.Frame) window;
-                    break;
-                }
-            }
+            java.awt.Frame parentFrame = obtenerFramePadre();
             
             // Abrir ventana modal
             int nuevoVolumen = UI.VentanaVolumen.mostrarDialogo(parentFrame, volumenActual);
@@ -201,7 +192,19 @@ public class MenuAppState extends BaseAppState {
     }
 
     /**
-     * NUEVO: Actualiza el label del contador
+     * Obtiene el Frame padre de la aplicación
+     */
+    private java.awt.Frame obtenerFramePadre() {
+        for (java.awt.Window window : java.awt.Window.getWindows()) {
+            if (window instanceof java.awt.Frame) {
+                return (java.awt.Frame) window;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Actualiza el label del contador
      */
     private void actualizarContadorSeleccion() {
         int count = cancionesSeleccionadas.size();
@@ -216,30 +219,43 @@ public class MenuAppState extends BaseAppState {
         System.out.println("Contador actualizado: " + count + " canciones");
     }
 
+    /**
+     * Muestra las instrucciones del juego - ACTUALIZADO
+     */
     private void mostrarInstrucciones() {
         String instrucciones =
-                "1. Coloca archivos .wav en:\n" 
-                + "MiJuegoDeRitmo1/assets/canciones\n\n" + 
-                "2. Presiona 'Seleccionar Canciones'\n"
-                + " para elegir cuales jugar" +
-                "   \n\n" +
-                "3. Presiona 'EMPEZAR JUEGO'";
-        
- 
+            "1. Coloca archivos .wav en:\n" 
+            + "   MiJuegoDeRitmo1/assets/canciones\n\n" 
+            + "2. Presiona 'Seleccionar Canciones'\n"
+            + "   para elegir cuales jugar\n\n" 
+            + "3. Presiona 'EMPEZAR JUEGO'\n\n"
+            + "=== CONTROLES ===\n"
+            + "↑↓←→ o WASD: Golpear flechas\n\n"
+            + "=== TIPOS DE FLECHAS ===\n"
+            + "• NORMALES: Color por dirección\n"
+            + "  Movimiento directo\n"
+            + "• RÁPIDAS: Más brillantes\n"
+            + "  x1.5 puntos\n"
+            + "• DORADAS: Amarillas brillantes\n"
+            + "  ¡SE INVIERTEN! x2 puntos";
         
         lblInstrucciones.setText(instrucciones);
-        lblInstrucciones.setFontSize(15);
+        lblInstrucciones.setFontSize(13);
         lblInstrucciones.setColor(ColorRGBA.Cyan);
         System.out.println("\n" + instrucciones);
     }
 
+    /**
+     * Abre la carpeta de canciones en el explorador
+     */
     public void abrirCarpetaCanciones() {
         try {
             String rutaCarpeta = "assets/canciones/";
             File carpeta = new File(rutaCarpeta);
+            
             if (!carpeta.exists()) {
                 carpeta.mkdirs();
-                System.out.println("Carpeta creada");
+                System.out.println("Carpeta creada: " + carpeta.getAbsolutePath());
             }
 
             if (java.awt.Desktop.isDesktopSupported()) {
@@ -266,10 +282,12 @@ public class MenuAppState extends BaseAppState {
     }
 
     /**
-     * Inicia el juego con las canciones seleccionadas (o todas)
+     * Inicia el juego con análisis completo - ACTUALIZADO PARA NUEVO SISTEMA
      */
-private void iniciarJuego() {
-    if (juego != null) {
+    private void iniciarJuego() {
+        if (juego == null) return;
+        
+        // Determinar qué canciones jugar
         List<String> lista = cancionesSeleccionadas.isEmpty()
                 ? playlistManager.getCanciones()
                 : new ArrayList<>(cancionesSeleccionadas);
@@ -284,31 +302,34 @@ private void iniciarJuego() {
         System.out.println("\n=== PREPARANDO JUEGO ===");
         System.out.println("Canciones a analizar: " + lista.size());
         
-        // Abrir ventana de carga
+        // Abrir ventana de carga y análisis
         SwingUtilities.invokeLater(() -> {
-            java.awt.Frame parentFrame = null;
-            for (java.awt.Window window : java.awt.Window.getWindows()) {
-                if (window instanceof java.awt.Frame) {
-                    parentFrame = (java.awt.Frame) window;
-                    break;
-                }
-            }
+            java.awt.Frame parentFrame = obtenerFramePadre();
             
-            AnalizadorCanciones analizador = new AnalizadorCanciones(juego.getAssetManager());
-            boolean completado = VentanaCargaCanciones.mostrarYAnalizar(parentFrame, lista, analizador);
+            // ⭐ CAMBIO PRINCIPAL: Usar mostrarYAnalizarConResultados para obtener el Map
+            Map<String, ResultadoAnalisis> resultados = 
+                VentanaCargaCanciones.mostrarYAnalizarConResultados(
+                    parentFrame, 
+                    lista, 
+                    analizador
+                );
             
+            // Iniciar gameplay en el thread de JME con los resultados
             juego.enqueue(() -> {
-                if (completado) {
+                if (!resultados.isEmpty()) {
                     System.out.println("\n✓ Análisis completado - Iniciando gameplay");
-                    juego.startGameplay(lista);
+                    System.out.println("Resultados obtenidos: " + resultados.size() + " canciones");
+                    
+                    // ⭐ Llamar al nuevo método que acepta el Map de análisis
+                    juego.startGameplay(lista, resultados);
                 } else {
-                    System.out.println("\n✕ Análisis cancelado");
+                    System.out.println("\n✕ Análisis cancelado o falló");
                 }
                 return null;
             });
         });
     }
-}
+
     @Override
     public void update(float tpf) {
         // El volumen ahora se maneja desde la ventana separada
@@ -340,6 +361,12 @@ private void iniciarJuego() {
         }
     }
 
-    public PlaylistManager getPlaylistManager() { return playlistManager; }
-    public void setPlaylistManager(PlaylistManager pm) { this.playlistManager = pm; }
+    // Getters
+    public PlaylistManager getPlaylistManager() { 
+        return playlistManager; 
+    }
+    
+    public void setPlaylistManager(PlaylistManager pm) { 
+        this.playlistManager = pm; 
+    }
 }
