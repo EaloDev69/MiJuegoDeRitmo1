@@ -4,6 +4,7 @@
  */
 package UI;
 
+import com.jme3.app.SimpleApplication;
 import com.jme3.app.Application;
 import com.jme3.font.BitmapFont;
 import com.jme3.font.BitmapText;
@@ -71,8 +72,8 @@ public class GameplayUI {
     /**
      * Constructor del HUD
      */
-    public GameplayUI(Application app) {
-        this.app = app;
+    public GameplayUI(SimpleApplication app) {
+    this.app = app;
         this.guiNode = app.getGuiNode();
         this.font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
         this.ancho = app.getCamera().getWidth();
@@ -416,4 +417,4 @@ public class GameplayUI {
         }
     }
 } 
-}
+
