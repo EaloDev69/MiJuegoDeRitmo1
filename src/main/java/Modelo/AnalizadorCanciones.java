@@ -12,131 +12,71 @@ import be.tarsos.dsp.onsets.ComplexOnsetDetector;
 import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.AudioProcessor;
 import com.jme3.asset.AssetManager;
-
 import java.io.File;
 import java.net.URL;
 import java.util.*;
 
 /**
- * Analizador MEJORADO de canciones para juego de ritmo
- * Usa múltiples detectores y técnicas para maximizar la detección de beats
- * CON NORMALIZACIÓN AUTOMÁTICA DE BPM Y SINCRONIZACIÓN ENTRE TIPOS
- * 
- * @author CamiLaNekoUwU_Gamer
+ * Analizador OPTIMIZADO de canciones para juego de ritmo
+ * Ajustado para detectar más beats de manera confiable
  */
 public class AnalizadorCanciones {
-    
     private final AssetManager assetManager;
     
-    // Configuración de análisis mejorada
+    // Configuración OPTIMIZADA para detectar más beats
     private static final int BUFFER_SIZE = 512;
     private static final int OVERLAP = 256;
     
-    // === MODO AGRESIVO: Máxima detección ===
-    private static final boolean MODO_AGRESIVO = true;
+    // Parámetros MÁS SENSIBLES para detectar más beats
+    private static final double SENSITIVITY_NORMAL = 3.0;      // Más sensible
+    private static final double THRESHOLD_NORMAL = 0.15;        // Umbral más bajo
+    private static final double MIN_BEAT_DISTANCE_NORMAL = 0.15; // Permite beats más cercanos
     
-    // Parámetros para detección NORMAL (beats principales)
-    private static final double SENSITIVITY_NORMAL = 1.5;
-    private static final double THRESHOLD_NORMAL = 0.3;
-    private static final double MIN_BEAT_DISTANCE_NORMAL = 0.2;
+    private static final double SENSITIVITY_RAPIDO = 2.0;
+    private static final double THRESHOLD_RAPIDO = 0.1;
+    private static final double MIN_BEAT_DISTANCE_RAPIDO = 0.08;
     
-    // Parámetros para detección RÁPIDA (fills y dobles)
-    private static final double SENSITIVITY_RAPIDO = 0.8;
-    private static final double THRESHOLD_RAPIDO = 0.15;
-    private static final double MIN_BEAT_DISTANCE_RAPIDO = 0.1;
-    
-    // Parámetros para detección LENTA (beats marcados)
-    private static final double SENSITIVITY_LENTO = 5.0;
-    private static final double THRESHOLD_LENTO = 2.0;
+    private static final double SENSITIVITY_LENTO = 8.0;
+    private static final double THRESHOLD_LENTO = 1.5;
     private static final double MIN_BEAT_DISTANCE_LENTO = 0.4;
     
-    // === NUEVO: Rangos de BPM válidos ===
-    private static final double BPM_MIN_VALIDO = 30.0;
-    private static final double BPM_MAX_VALIDO = 220.0;
-    private static final double BPM_DENSIDAD_MINIMA = 0.5; // beats por segundo
-    
-    // BPM global compartido entre tipos
-    private double bpmGlobalEstimado = 0.0;
+    // ⭐ NUEVO: Modo híbrido con grid sintético
+    private static final boolean USAR_GRID_SINTETICO = true;
+    private static final int BPM_DEFAULT = 120; // BPM base si no se detectan suficientes beats
     
     public AnalizadorCanciones(AssetManager assetManager) {
         this.assetManager = assetManager;
     }
     
     /**
-     * NUEVO: Normaliza BPM anómalos multiplicando/dividiendo por potencias de 2
-     */
-    private double normalizarBPM(double bpm) {
-        if (bpm <= 0) return 120.0; // Default seguro
-        
-        double bpmOriginal = bpm;
-        
-        // Subir BPM muy bajos
-        if (bpm < 20) bpm *= 8;
-        else if (bpm < 40) bpm *= 4;
-        else if (bpm < 60) bpm *= 2;
-        
-        // Bajar BPM muy altos
-        else if (bpm > 240) bpm /= 2;
-        else if (bpm > 300) bpm /= 4;
-        
-        if (bpmOriginal != bpm) {
-            System.out.println("   🔧 BPM normalizado: " + 
-                String.format("%.1f → %.1f", bpmOriginal, bpm));
-        }
-        
-        return bpm;
-    }
-    
-    /**
-     * NUEVO: Calcula BPM considerando densidad de beats
-     */
-    private double calcularBPMConDensidad(List<Float> beats, double duracionTotal) {
-        if (beats.size() < 2) return 0.0;
-        
-        // BPM básico
-        double duracion = beats.get(beats.size() - 1) - beats.get(0);
-        double bpm = (beats.size() - 1) / (duracion / 60.0);
-        
-        // Verificar densidad (beats por segundo)
-        double densidad = beats.size() / duracionTotal;
-        
-        if (densidad < BPM_DENSIDAD_MINIMA) {
-            System.out.println("   ⚠️ Densidad baja detectada: " + 
-                String.format("%.2f beats/s", densidad));
-            bpm *= 4; // Multiplicar para compensar subdetección
-        }
-        
-        return normalizarBPM(bpm);
-    }
-    
-    /**
-     * Analiza con detector MEJORADO que combina múltiples técnicas
+     * Analiza beats normales (flechas principales)
      */
     public List<Float> analizarCancion(String path) {
         System.out.println("\n📊 Analizando BEATS NORMALES: " + new File(path).getName());
-        return analizarConDetectorHibrido(path, SENSITIVITY_NORMAL, THRESHOLD_NORMAL, 
-            MIN_BEAT_DISTANCE_NORMAL, "NORMAL");
-    }
-    
-    public List<Float> analizarCancionParaParpadeos(String path) {
-        System.out.println("\n⚡ Analizando BEATS RÁPIDOS: " + new File(path).getName());
-        return analizarConDetectorHibrido(path, SENSITIVITY_RAPIDO, THRESHOLD_RAPIDO, 
-            MIN_BEAT_DISTANCE_RAPIDO, "RÁPIDO");
-    }
-    
-    public List<Float> analizarCancionParaDoradas(String path) {
-        System.out.println("\n🌟 Analizando BEATS LENTOS: " + new File(path).getName());
-        return analizarConDetectorHibrido(path, SENSITIVITY_LENTO, THRESHOLD_LENTO, 
-            MIN_BEAT_DISTANCE_LENTO, "LENTO");
+        return analizarConDetectorHibridoOptimizado(path, SENSITIVITY_NORMAL, THRESHOLD_NORMAL, MIN_BEAT_DISTANCE_NORMAL, "NORMAL");
     }
     
     /**
-     * DETECTOR HÍBRIDO: Combina PercussionOnsetDetector + ComplexOnsetDetector
-     * para maximizar la detección de beats
+     * Analiza beats rápidos (flechas rápidas)
      */
-    private List<Float> analizarConDetectorHibrido(String path, double sensitivity, 
-                                                    double threshold, double minDistance, 
-                                                    String tipo) {
+    public List<Float> analizarCancionParaParpadeos(String path) {
+        System.out.println("\n⚡ Analizando BEATS RÁPIDOS: " + new File(path).getName());
+        return analizarConDetectorHibridoOptimizado(path, SENSITIVITY_RAPIDO, THRESHOLD_RAPIDO, MIN_BEAT_DISTANCE_RAPIDO, "RÁPIDO");
+    }
+    
+    /**
+     * Analiza beats lentos (mecánica especial)
+     */
+    public List<Float> analizarCancionParaDoradas(String path) {
+        System.out.println("\n🌟 Analizando BEATS LENTOS: " + new File(path).getName());
+        return analizarConDetectorHibridoOptimizado(path, SENSITIVITY_LENTO, THRESHOLD_LENTO, MIN_BEAT_DISTANCE_LENTO, "LENTO");
+    }
+    
+    /**
+     * DETECTOR HÍBRIDO OPTIMIZADO
+     * Combina detección real + grid sintético para garantizar jugabilidad
+     */
+    private List<Float> analizarConDetectorHibridoOptimizado(String path, double sensitivity, double threshold, double minDistance, String tipo) {
         List<Float> beats = new ArrayList<>();
         
         try {
@@ -148,33 +88,41 @@ public class AnalizadorCanciones {
             
             URL audioURL = audioFile.toURI().toURL();
             
-            // === PRIMERA PASADA: Percussion Onset Detector ===
+            // === PASO 1: Detección real de beats ===
+            List<Double> beatsDetectados = new ArrayList<>();
+            
+            // Detector de percusión
             List<Double> beatsPercusion = detectarConPercussion(audioURL, sensitivity, threshold);
-            System.out.println("   Detector Percusión: " + beatsPercusion.size() + " beats");
+            System.out.println(" Detector Percusión: " + beatsPercusion.size() + " beats");
+            beatsDetectados.addAll(beatsPercusion);
             
-            // === SEGUNDA PASADA: Complex Onset Detector ===
+            // Detector complejo
             List<Double> beatsComplex = detectarConComplex(audioURL, sensitivity, threshold);
-            System.out.println("   Detector Complejo: " + beatsComplex.size() + " beats");
+            System.out.println(" Detector Complejo: " + beatsComplex.size() + " beats");
+            beatsDetectados.addAll(beatsComplex);
             
-            // === TERCERA PASADA: Detector de Energía ===
+            // Detector de energía
             List<Double> beatsEnergia = detectarPorEnergia(audioURL, threshold);
-            System.out.println("   Detector Energía: " + beatsEnergia.size() + " beats");
+            System.out.println(" Detector Energía: " + beatsEnergia.size() + " beats");
+            beatsDetectados.addAll(beatsEnergia);
             
-            // === COMBINAR TODOS LOS DETECTORES ===
-            Set<Double> beatsCombinados = new TreeSet<>();
-            beatsCombinados.addAll(beatsPercusion);
-            beatsCombinados.addAll(beatsComplex);
-            beatsCombinados.addAll(beatsEnergia);
+            // Combinar y eliminar duplicados
+            Set<Double> beatsCombinados = new TreeSet<>(beatsDetectados);
+            System.out.println(" Total combinado: " + beatsCombinados.size() + " beats");
             
-            System.out.println("   Total combinado: " + beatsCombinados.size() + " beats");
-            
-            // === FILTRAR BEATS MUY CERCANOS ===
+            // Filtrar beats muy cercanos
             List<Double> beatsFiltrados = filtrarBeatsCercanos(new ArrayList<>(beatsCombinados), minDistance);
             
-            // === GENERAR BEATS SINTÉTICOS SI HAY MUY POCOS ===
-            if (MODO_AGRESIVO && beatsFiltrados.size() < 20) {
-                System.out.println("   ⚠️ Pocos beats detectados, generando beats sintéticos...");
-                beatsFiltrados = generarBeatsSinteticos(beatsFiltrados, path, tipo);
+            // === PASO 2: Grid sintético si es necesario ===
+            if (USAR_GRID_SINTETICO && tipo.equals("NORMAL")) {
+                double duracion = obtenerDuracionArchivo(path);
+                int beatsEsperados = (int)((duracion / 60.0) * BPM_DEFAULT);
+                
+                if (beatsFiltrados.size() < beatsEsperados * 0.5) {
+                    System.out.println(" ⚠ Pocos beats detectados (" + beatsFiltrados.size() + " de " + beatsEsperados + " esperados)");
+                    System.out.println(" 🎵 Generando grid sintético complementario...");
+                    beatsFiltrados = generarGridHibrido(beatsFiltrados, duracion, BPM_DEFAULT);
+                }
             }
             
             // Convertir a Float
@@ -182,10 +130,16 @@ public class AnalizadorCanciones {
                 beats.add(beat.floatValue());
             }
             
-            System.out.println("   ✓ Final: " + beats.size() + " beats");
+            System.out.println(" ✓ Final: " + beats.size() + " beats");
             if (!beats.isEmpty()) {
-                System.out.println("   Rango: " + String.format("%.2f", beats.get(0)) + "s - " + 
-                                 String.format("%.2f", beats.get(beats.size() - 1)) + "s");
+                System.out.println(" Rango: " + String.format("%.2f", beats.get(0)) + "s - " + String.format("%.2f", beats.get(beats.size() - 1)) + "s");
+                
+                // Mostrar densidad de beats
+                if (beats.size() > 1) {
+                    float duracionTotal = beats.get(beats.size() - 1) - beats.get(0);
+                    float densidad = beats.size() / duracionTotal;
+                    System.out.println(" Densidad: " + String.format("%.2f", densidad) + " beats/segundo");
+                }
             }
             
         } catch (Exception e) {
@@ -197,11 +151,39 @@ public class AnalizadorCanciones {
     }
     
     /**
-     * Detector de percusión tradicional
+     * Genera grid híbrido: combina beats detectados + grid sintético
      */
+    private List<Double> generarGridHibrido(List<Double> beatsDetectados, double duracion, int bpmBase) {
+        List<Double> gridHibrido = new ArrayList<>(beatsDetectados);
+        double intervalo = 60.0 / bpmBase;
+        
+        // Generar grid sintético
+        for (double t = 0.5; t < duracion - 0.5; t += intervalo) {
+            // Solo agregar si no hay un beat detectado cercano
+            if (!hayBeatCerca(beatsDetectados, t, intervalo * 0.3)) {
+                gridHibrido.add(t);
+            }
+        }
+        
+        Collections.sort(gridHibrido);
+        System.out.println(" Grid híbrido: " + beatsDetectados.size() + " detectados + " + (gridHibrido.size() - beatsDetectados.size()) + " sintéticos = " + gridHibrido.size() + " total");
+        
+        return gridHibrido;
+    }
+    
+    private boolean hayBeatCerca(List<Double> beats, double tiempo, double tolerancia) {
+        for (Double beat : beats) {
+            if (Math.abs(beat - tiempo) < tolerancia) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // ==================== DETECTORES ====================
+    
     private List<Double> detectarConPercussion(URL audioURL, double sensitivity, double threshold) {
         List<Double> beats = new ArrayList<>();
-        
         try {
             AudioDispatcher dispatcher = AudioDispatcherFactory.fromURL(audioURL, BUFFER_SIZE, OVERLAP);
             float sampleRate = dispatcher.getFormat().getSampleRate();
@@ -217,19 +199,13 @@ public class AnalizadorCanciones {
         } catch (Exception e) {
             System.err.println("Error en detector de percusión: " + e.getMessage());
         }
-        
         return beats;
     }
     
-    /**
-     * Detector complejo (mejor para música no percusiva)
-     */
     private List<Double> detectarConComplex(URL audioURL, double sensitivity, double threshold) {
         List<Double> beats = new ArrayList<>();
-        
         try {
             AudioDispatcher dispatcher = AudioDispatcherFactory.fromURL(audioURL, BUFFER_SIZE, OVERLAP);
-            float sampleRate = dispatcher.getFormat().getSampleRate();
             
             ComplexOnsetDetector detector = new ComplexOnsetDetector(
                 BUFFER_SIZE,
@@ -238,48 +214,37 @@ public class AnalizadorCanciones {
             );
             
             detector.setHandler((time, salience) -> beats.add(time));
-            
             dispatcher.addAudioProcessor(detector);
             dispatcher.run();
         } catch (Exception e) {
             System.err.println("Error en detector complejo: " + e.getMessage());
         }
-        
         return beats;
     }
     
-    /**
-     * Detector basado en cambios de energía RMS
-     */
     private List<Double> detectarPorEnergia(URL audioURL, double threshold) {
         List<Double> beats = new ArrayList<>();
-        
         try {
             AudioDispatcher dispatcher = AudioDispatcherFactory.fromURL(audioURL, BUFFER_SIZE, OVERLAP);
-            
             final double[] energiaPrevia = {0.0};
-            final double umbralEnergia = threshold * 10;
+            final double umbralEnergia = threshold * 8; // Ajustado
             
             dispatcher.addAudioProcessor(new AudioProcessor() {
                 @Override
                 public boolean process(AudioEvent audioEvent) {
                     float[] buffer = audioEvent.getFloatBuffer();
                     
-                    // Calcular energía RMS
                     double energia = 0;
                     for (float sample : buffer) {
                         energia += sample * sample;
                     }
                     energia = Math.sqrt(energia / buffer.length);
                     
-                    // Detectar pico de energía
                     if (energia > energiaPrevia[0] * (1.0 + umbralEnergia)) {
-                        double tiempo = audioEvent.getTimeStamp();
-                        beats.add(tiempo);
+                        beats.add(audioEvent.getTimeStamp());
                     }
                     
                     energiaPrevia[0] = energia * 0.9 + energiaPrevia[0] * 0.1;
-                    
                     return true;
                 }
                 
@@ -291,97 +256,9 @@ public class AnalizadorCanciones {
         } catch (Exception e) {
             System.err.println("Error en detector de energía: " + e.getMessage());
         }
-        
         return beats;
     }
     
-    /**
-     * MEJORADO: Genera beats sintéticos usando BPM global si está disponible
-     */
-    private List<Double> generarBeatsSinteticos(List<Double> beatsOriginales, String path, String tipo) {
-        List<Double> beatsExpandidos = new ArrayList<>(beatsOriginales);
-        
-        if (beatsOriginales.size() < 2) {
-            // Usar BPM global si existe, sino default
-            double bpmBase;
-            if (bpmGlobalEstimado > 0) {
-                bpmBase = bpmGlobalEstimado;
-                System.out.println("   🔗 Usando BPM global: " + String.format("%.1f", bpmBase));
-            } else {
-                bpmBase = tipo.equals("RÁPIDO") ? 140 : (tipo.equals("LENTO") ? 80 : 120);
-                System.out.println("   📐 Usando BPM predeterminado: " + bpmBase);
-            }
-            
-            double duracion = obtenerDuracionArchivo(path);
-            double intervalo = 60.0 / bpmBase;
-            
-            System.out.println("   Generando grid sintético a " + bpmBase + " BPM");
-            for (double t = 1.0; t < duracion; t += intervalo) {
-                beatsExpandidos.add(t);
-            }
-        } else {
-            // Estimar BPM de beats existentes
-            double duracion = beatsOriginales.get(beatsOriginales.size() - 1) - beatsOriginales.get(0);
-            double bpmEstimado = (beatsOriginales.size() - 1) / (duracion / 60.0);
-            
-            // NUEVO: Normalizar BPM antes de usar
-            bpmEstimado = normalizarBPM(bpmEstimado);
-            
-            double intervalo = 60.0 / bpmEstimado;
-            
-            System.out.println("   BPM estimado normalizado: " + String.format("%.1f", bpmEstimado));
-            System.out.println("   Interpolando beats adicionales...");
-            
-            // Generar beats entre los detectados
-            for (int i = 0; i < beatsOriginales.size() - 1; i++) {
-                double inicio = beatsOriginales.get(i);
-                double fin = beatsOriginales.get(i + 1);
-                double distancia = fin - inicio;
-                
-                if (distancia > intervalo * 2) {
-                    int beatsAGenerar = (int) (distancia / intervalo) - 1;
-                    for (int j = 1; j <= beatsAGenerar; j++) {
-                        beatsExpandidos.add(inicio + intervalo * j);
-                    }
-                }
-            }
-        }
-        
-        Collections.sort(beatsExpandidos);
-        System.out.println("   Beats tras expansión: " + beatsExpandidos.size());
-        return beatsExpandidos;
-    }
-    
-    /**
-     * Obtiene la duración del archivo de audio
-     */
-    private double obtenerDuracionArchivo(String path) {
-        try {
-            AudioDispatcher dispatcher = AudioDispatcherFactory.fromURL(
-                new File(path).toURI().toURL(), BUFFER_SIZE, 0
-            );
-            
-            final double[] duracion = {0};
-            dispatcher.addAudioProcessor(new AudioProcessor() {
-                @Override
-                public boolean process(AudioEvent audioEvent) {
-                    duracion[0] = audioEvent.getTimeStamp();
-                    return true;
-                }
-                @Override
-                public void processingFinished() {}
-            });
-            
-            dispatcher.run();
-            return duracion[0];
-        } catch (Exception e) {
-            return 180.0;
-        }
-    }
-    
-    /**
-     * Filtra beats muy cercanos
-     */
     private List<Double> filtrarBeatsCercanos(List<Double> beats, double minDistance) {
         if (beats.isEmpty()) return new ArrayList<>();
         
@@ -399,16 +276,40 @@ public class AnalizadorCanciones {
             }
         }
         
-        System.out.println("   Filtrado: " + beats.size() + " → " + filtrados.size() + " beats");
         return filtrados;
     }
     
+    private double obtenerDuracionArchivo(String path) {
+        try {
+            AudioDispatcher dispatcher = AudioDispatcherFactory.fromURL(
+                new File(path).toURI().toURL(), BUFFER_SIZE, 0
+            );
+            
+            final double[] duracion = {0};
+            dispatcher.addAudioProcessor(new AudioProcessor() {
+                @Override
+                public boolean process(AudioEvent audioEvent) {
+                    duracion[0] = audioEvent.getTimeStamp();
+                    return true;
+                }
+                
+                @Override
+                public void processingFinished() {}
+            });
+            
+            dispatcher.run();
+            return duracion[0];
+        } catch (Exception e) {
+            return 180.0; // Default 3 minutos
+        }
+    }
+    
     /**
-     * MEJORADO: Análisis completo con normalización y sincronización de BPM
+     * Análisis completo con todos los detectores
      */
     public ResultadoAnalisis analizarCompleto(String path) {
         System.out.println("\n" + "=".repeat(60));
-        System.out.println("🎵 ANÁLISIS MEJORADO V2: " + new File(path).getName());
+        System.out.println("🎵 ANÁLISIS OPTIMIZADO: " + new File(path).getName());
         System.out.println("=".repeat(60));
         
         long inicio = System.currentTimeMillis();
@@ -416,59 +317,27 @@ public class AnalizadorCanciones {
         ResultadoAnalisis resultado = new ResultadoAnalisis();
         resultado.rutaCancion = path;
         resultado.nombreCancion = new File(path).getName();
-        
-        // Obtener duración total
-        resultado.duracionTotal = (float) obtenerDuracionArchivo(path);
-        
-        // Analizar beats normales primero (establece el BPM base)
         resultado.beatsNormales = analizarCancion(path);
-        
-        // Calcular BPM base con normalización
-        if (!resultado.beatsNormales.isEmpty()) {
-            bpmGlobalEstimado = calcularBPMConDensidad(
-                resultado.beatsNormales, 
-                resultado.duracionTotal
-            );
-            resultado.bpmBase = bpmGlobalEstimado;
-        }
-        
-        // Analizar otros tipos (pueden usar el BPM global)
         resultado.beatsRapidos = analizarCancionParaParpadeos(path);
         resultado.beatsLentos = analizarCancionParaDoradas(path);
-        
-        // NUEVO: Sincronizar BPM relativos
-        if (resultado.bpmBase > 0) {
-            resultado.bpmRapido = resultado.bpmBase * 2.0;
-            resultado.bpmLento = resultado.bpmBase * 0.75;
-        }
         
         long duracion = System.currentTimeMillis() - inicio;
         
         System.out.println("\n📈 RESUMEN:");
-        System.out.println("   Flechas normales:    " + resultado.beatsNormales.size());
-        System.out.println("   Flechas especiales:  " + resultado.beatsRapidos.size());
-        System.out.println("   Mecánica espacio:    " + resultado.beatsLentos.size());
-        System.out.println("   🕒 BPM base:         " + String.format("%.1f", resultado.bpmBase));
-        System.out.println("   ⚡ BPM rápido:       " + String.format("%.1f", resultado.bpmRapido));
-        System.out.println("   🌟 BPM lento:        " + String.format("%.1f", resultado.bpmLento));
-        System.out.println("   ⏱️  Duración:         " + String.format("%.1fs", resultado.duracionTotal));
-        System.out.println("   Tiempo análisis: " + duracion + "ms");
+        System.out.println(" Flechas normales: " + resultado.beatsNormales.size());
+        System.out.println(" Flechas especiales: " + resultado.beatsRapidos.size());
+        System.out.println(" Mecánica espacio: " + resultado.beatsLentos.size());
+        System.out.println(" Tiempo: " + duracion + "ms");
         System.out.println("=".repeat(60) + "\n");
-        
-        // Resetear BPM global para siguiente canción
-        bpmGlobalEstimado = 0.0;
         
         return resultado;
     }
     
-    /**
-     * Análisis múltiple
-     */
     public Map<String, ResultadoAnalisis> analizarMultiples(List<String> rutas) {
         Map<String, ResultadoAnalisis> resultados = new LinkedHashMap<>();
         
         System.out.println("\n" + "=".repeat(70));
-        System.out.println("🎼 ANÁLISIS BATCH MEJORADO V2: " + rutas.size() + " canciones");
+        System.out.println("🎼 ANÁLISIS BATCH: " + rutas.size() + " canciones");
         System.out.println("=".repeat(70));
         
         int progreso = 0;
@@ -493,7 +362,7 @@ public class AnalizadorCanciones {
     }
     
     /**
-     * MEJORADO: Clase de resultado con BPM sincronizados
+     * Clase de resultado
      */
     public static class ResultadoAnalisis {
         public String rutaCancion;
@@ -502,22 +371,18 @@ public class AnalizadorCanciones {
         public List<Float> beatsRapidos = new ArrayList<>();
         public List<Float> beatsLentos = new ArrayList<>();
         
-        // NUEVO: BPM sincronizados
-        public double bpmBase = 0.0;      // BPM normalizado de beats normales
-        public double bpmRapido = 0.0;    // bpmBase * 2
-        public double bpmLento = 0.0;     // bpmBase * 0.75
-        public float duracionTotal = 0.0f;
-        
-        /**
-         * DEPRECADO: Usar bpmBase en su lugar
-         */
-        @Deprecated
         public double getBPMEstimado() {
-            return bpmBase;
+            if (beatsNormales.size() < 10) return 0.0;
+            double duracion = beatsNormales.get(beatsNormales.size() - 1) - beatsNormales.get(0);
+            return (beatsNormales.size() - 1) / (duracion / 60.0);
         }
         
         public float getDuracionTotal() {
-            return duracionTotal;
+            float maxTime = 0f;
+            if (!beatsNormales.isEmpty()) maxTime = Math.max(maxTime, beatsNormales.get(beatsNormales.size() - 1));
+            if (!beatsRapidos.isEmpty()) maxTime = Math.max(maxTime, beatsRapidos.get(beatsRapidos.size() - 1));
+            if (!beatsLentos.isEmpty()) maxTime = Math.max(maxTime, beatsLentos.get(beatsLentos.size() - 1));
+            return maxTime;
         }
         
         public boolean esValido() {
@@ -526,14 +391,8 @@ public class AnalizadorCanciones {
         
         @Override
         public String toString() {
-            return String.format(
-                "ResultadoAnalisis[%s, normal=%d, rapido=%d, lento=%d, bpm=%.1f/%.1f/%.1f]",
-                nombreCancion, 
-                beatsNormales.size(), 
-                beatsRapidos.size(), 
-                beatsLentos.size(), 
-                bpmBase, bpmRapido, bpmLento
-            );
+            return String.format("ResultadoAnalisis[%s, normal=%d, rapido=%d, lento=%d, bpm=%.1f]",
+                nombreCancion, beatsNormales.size(), beatsRapidos.size(), beatsLentos.size(), getBPMEstimado());
         }
     }
 }

@@ -7,13 +7,17 @@ package Modelo;
 import com.jme3.math.Vector3f;
 import com.jme3.math.ColorRGBA;
 
+/**
+ * Direcciones de las flechas - Estilo Friday Night Funkin'
+ * TODAS las flechas vienen desde ABAJO hacia los targets ARRIBA
+ */
 public enum Direccion {
-    // ⭐ USAR LOS NOMBRES EXACTOS DE TUS ARCHIVOS (o los renombrados)
-    ARRIBA(new Vector3f(0, -1, 0), ColorRGBA.Blue, "Textures/flecha_azul.png", 0f, "w"),
+    // ⭐ NOMBRES EXACTOS DE TUS ARCHIVOS PNG
+    IZQUIERDA(new Vector3f(0, 1, 0), ColorRGBA.Red, "Textures/flecha_roja.png", 270f, "a"),
     ABAJO(new Vector3f(0, 1, 0), ColorRGBA.Blue, "Textures/flecha_azul.png", 180f, "abajo"),
-    IZQUIERDA(new Vector3f(1, 0, 0), ColorRGBA.Red, "Textures/flecha_roja.png", 270f, "a"),
-    DERECHA(new Vector3f(-1, 0, 0), ColorRGBA.Red, "Textures/flecha_roja.png", 90f, "derecha"),
-    ESPACIO(new Vector3f(0, 0, 0), ColorRGBA.White, "Textures/flecha_especial_luna.png", 0f, "espacio");
+    ARRIBA(new Vector3f(0, 1, 0), ColorRGBA.Blue, "Textures/flecha_azul.png", 0f, "w"),
+    DERECHA(new Vector3f(0, 1, 0), ColorRGBA.Red, "Textures/flecha_roja.png", 90f, "derecha"),
+    ESPACIO(new Vector3f(0, 1, 0), ColorRGBA.White, "Textures/flecha_especial_luna.png", 0f, "espacio");
 
     private final Vector3f direccion;
     private final ColorRGBA color;
@@ -61,14 +65,12 @@ public enum Direccion {
     }
 
     /**
-     * ⭐ Posiciones de los targets (flechas vacías) - Estilo Friday Night Funkin'
+     * ⭐ TARGETS ARRIBA - Estilo Friday Night Funkin'
      */
     public Vector3f getPosicionTarget(float anchoVentana, float altoVentana) {
         float centroX = anchoVentana / 2;
         float espaciado = 100f;
-        
-        // ⭐ Targets arriba como en FNF
-        float targetY = altoVentana - 150f;
+        float targetY = altoVentana - 120f; // Arriba
 
         switch(this) {
             case IZQUIERDA:
@@ -80,22 +82,19 @@ public enum Direccion {
             case DERECHA:
                 return new Vector3f(centroX + espaciado * 1.5f, targetY, 0);
             case ESPACIO:
-                // Luna abajo centrada
-                return new Vector3f(centroX, 150f, 0);
+                return new Vector3f(centroX, 120f, 0); // Luna abajo
             default:
                 return new Vector3f(centroX, altoVentana / 2, 0);
         }
     }
 
     /**
-     * ⭐ Posiciones de spawn (desde donde aparecen las flechas)
-     * Todas vienen desde ABAJO de la pantalla
+     * ⭐ SPAWN ABAJO - Todas las flechas vienen desde abajo
      */
     public Vector3f getPosicionSpawn(float anchoVentana, float altoVentana) {
         Vector3f target = getPosicionTarget(anchoVentana, altoVentana);
-        
-        // Las flechas siempre vienen desde abajo hacia arriba
-        return new Vector3f(target.x, -100f, 0); // Spawn 100px abajo de la pantalla
+        // Spawn 150px ABAJO de la pantalla
+        return new Vector3f(target.x, -150f, 0);
     }
 
     public boolean esEspecial() {
