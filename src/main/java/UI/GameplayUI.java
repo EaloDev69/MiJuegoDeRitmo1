@@ -4,6 +4,7 @@
  */
 package UI;
 
+import Modelo.Direccion;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.Application;
 import com.jme3.font.BitmapFont;
@@ -11,12 +12,15 @@ import com.jme3.font.BitmapText;
 import com.jme3.material.Material;
 import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Quad;
 import java.util.ArrayList;
 import java.util.List;
+import com.jme3.scene.Spatial;
+import com.jme3.texture.Texture;
 /**
  *
  * @author CamiLaNekoUwU_Gamer
@@ -89,12 +93,12 @@ public class GameplayUI {
      * Inicializa todos los elementos del HUD
      */
     private void inicializarUI() {
-        crearBarraVida();
-        crearTextoScore();
-        crearTextoCombo();
-        crearTextoCancion();
-        crearIndicadoresDireccion();
-    }
+    crearBarraVida();
+    crearTextoScore();
+    crearTextoCombo();
+    crearTextoCancion();
+    crearTargetsFlechas(); // ⭐ NUEVO: En lugar de crearIndicadoresDireccion()
+}
     
     // ==================== BARRA DE VIDA ====================
     
@@ -102,53 +106,50 @@ public class GameplayUI {
      * Crea la barra de vida con fondo y barra actual
      */
     private void crearBarraVida() {
-        float anchoBarraMax = 400f;
-        float altoBarraMax = 30f;
-        float posX = 20f;
-        float posY = alto - 50f;
-        
-        // === FONDO DE LA BARRA (gris oscuro) ===
-        Quad fondoQuad = new Quad(anchoBarraMax, altoBarraMax);
-        barraVidaFondo = new Geometry("BarraVidaFondo", fondoQuad);
-        
-        Material matFondo = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        matFondo.setColor("Color", new ColorRGBA(0.2f, 0.2f, 0.2f, 0.8f));
-        matFondo.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-        barraVidaFondo.setMaterial(matFondo);
-        barraVidaFondo.setLocalTranslation(posX, posY, 0);
-        
-        guiNode.attachChild(barraVidaFondo);
-        
-        // === BARRA DE VIDA ACTUAL (verde) ===
-        Quad vidaQuad = new Quad(anchoBarraMax, altoBarraMax);
-        barraVidaActual = new Geometry("BarraVidaActual", vidaQuad);
-        
-        Material matVida = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        matVida.setColor("Color", COLOR_VIDA_ALTA);
-        matVida.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-        barraVidaActual.setMaterial(matVida);
-        barraVidaActual.setLocalTranslation(posX, posY, 0.1f); // Z ligeramente adelante
-        
-        guiNode.attachChild(barraVidaActual);
-        
-        // === TEXTO DE PORCENTAJE ===
-        txtVidaPorcentaje = new BitmapText(font);
-        txtVidaPorcentaje.setSize(20f);
-        txtVidaPorcentaje.setColor(ColorRGBA.White);
-        txtVidaPorcentaje.setText("100%");
-        txtVidaPorcentaje.setLocalTranslation(posX + anchoBarraMax + 15f, posY + 22f, 0.2f);
-        
-        guiNode.attachChild(txtVidaPorcentaje);
-        
-        // === ETIQUETA "VIDA" ===
-        BitmapText lblVida = new BitmapText(font);
-        lblVida.setSize(16f);
-        lblVida.setColor(ColorRGBA.Cyan);
-        lblVida.setText("VIDA:");
-        lblVida.setLocalTranslation(posX, posY + altoBarraMax + 15f, 0);
-        
-        guiNode.attachChild(lblVida);
-    }
+    float anchoBarraMax = 400f;
+    float altoBarraMax = 30f;
+    float posX = 20f;
+    float posY = alto - 50f;
+
+    // === FONDO DE LA BARRA ===
+    Quad fondoQuad = new Quad(anchoBarraMax, altoBarraMax);
+    barraVidaFondo = new Geometry("BarraVidaFondo", fondoQuad);
+    Material matFondo = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+    matFondo.setColor("Color", new ColorRGBA(0.2f, 0.2f, 0.2f, 0.8f));
+    matFondo.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+    barraVidaFondo.setMaterial(matFondo);
+    barraVidaFondo.setLocalTranslation(posX, posY, 0);
+    guiNode.attachChild(barraVidaFondo);
+
+    // === BARRA DE VIDA ACTUAL ===
+    Quad vidaQuad = new Quad(anchoBarraMax, altoBarraMax);
+    barraVidaActual = new Geometry("BarraVidaActual", vidaQuad);
+    Material matVida = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+    matVida.setColor("Color", COLOR_VIDA_ALTA);
+    matVida.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+    barraVidaActual.setMaterial(matVida);
+    barraVidaActual.setLocalTranslation(posX, posY, 0.1f);
+    guiNode.attachChild(barraVidaActual);
+
+    // === TEXTO DE PORCENTAJE ===
+    txtVidaPorcentaje = new BitmapText(font);
+    txtVidaPorcentaje.setSize(20f);
+    txtVidaPorcentaje.setColor(ColorRGBA.White);
+    txtVidaPorcentaje.setText("100%");
+    // ⭐ AJUSTAR POSICIÓN para que esté DENTRO de la barra
+    txtVidaPorcentaje.setLocalTranslation(posX + anchoBarraMax / 2 - 25f, posY + 20f, 0.2f);
+    guiNode.attachChild(txtVidaPorcentaje);
+
+    // === ETIQUETA "VIDA" ===
+    BitmapText lblVida = new BitmapText(font);
+    lblVida.setSize(16f);
+    lblVida.setColor(ColorRGBA.Cyan);
+    lblVida.setText("VIDA:");
+    lblVida.setLocalTranslation(posX, posY + altoBarraMax + 15f, 0);
+    guiNode.attachChild(lblVida);
+    
+    System.out.println("✓ Barra de vida creada: " + posX + ", " + posY);
+}
     
     /**
      * Actualiza la barra de vida
@@ -282,12 +283,67 @@ public class GameplayUI {
         
         txtCancion.setText("♪ " + nombre);
     }
-    
-    // ==================== FEEDBACK ====================
-    
     /**
-     * Muestra un mensaje de feedback temporal
-     */
+ * Oculta temporalmente toda la UI (para mostrar ventanas externas)
+ */
+/**
+ * Oculta temporalmente toda la UI
+ */
+public void ocultarTemporalmente() {
+    System.out.println("🔴 Ocultando UI del gameplay");
+    
+    if (barraVidaFondo != null && barraVidaFondo.getParent() != null) {
+        barraVidaFondo.removeFromParent();
+    }
+    if (barraVidaActual != null && barraVidaActual.getParent() != null) {
+        barraVidaActual.removeFromParent();
+    }
+    if (txtVidaPorcentaje != null && txtVidaPorcentaje.getParent() != null) {
+        txtVidaPorcentaje.removeFromParent();
+    }
+    if (txtScore != null && txtScore.getParent() != null) {
+        txtScore.removeFromParent();
+    }
+    if (txtCombo != null && txtCombo.getParent() != null) {
+        txtCombo.removeFromParent();
+    }
+    if (txtCancion != null && txtCancion.getParent() != null) {
+        txtCancion.removeFromParent();
+    }
+    if (nodoDirecciones != null && nodoDirecciones.getParent() != null) {
+        nodoDirecciones.removeFromParent();
+    }
+}
+
+/**
+ * Muestra nuevamente la UI
+ */
+    public void mostrarNuevamente() {
+    System.out.println("🟢 Mostrando UI del gameplay");
+    
+         if (barraVidaFondo != null && barraVidaFondo.getParent() == null) {
+          guiNode.attachChild(barraVidaFondo);
+        }
+         if (barraVidaActual != null && barraVidaActual.getParent() == null) {
+          guiNode.attachChild(barraVidaActual);
+        }
+        if (txtVidaPorcentaje != null && txtVidaPorcentaje.getParent() == null) {
+          guiNode.attachChild(txtVidaPorcentaje);
+        }
+        if (txtScore != null && txtScore.getParent() == null) {
+          guiNode.attachChild(txtScore);
+        }
+        if (txtCombo != null && txtCombo.getParent() == null) {
+          guiNode.attachChild(txtCombo);
+        }
+        if (txtCancion != null && txtCancion.getParent() == null) {
+          guiNode.attachChild(txtCancion);
+        }
+        if (nodoDirecciones != null && nodoDirecciones.getParent() == null) {
+          guiNode.attachChild(nodoDirecciones);
+        }
+    }
+
     public void mostrarFeedback(String mensaje, ColorRGBA color) {
         BitmapText txtFeedback = new BitmapText(font);
         txtFeedback.setSize(36f);
@@ -341,27 +397,120 @@ public class GameplayUI {
      * Crea los indicadores de las 4 direcciones en el centro
      */
     private void crearIndicadoresDireccion() {
-        nodoDirecciones = new Node("IndicadoresDireccion");
-        
-        float centroX = ancho / 2;
-        float centroY = alto / 2;
-        float distancia = 100f; // Distancia desde el centro
-        float tamano = 40f;
-        
-        // ARRIBA
-        crearIndicador(centroX - tamano/2, centroY + distancia, tamano, ColorRGBA.Red);
-        
-        // ABAJO
-        crearIndicador(centroX - tamano/2, centroY - distancia - tamano, tamano, ColorRGBA.Blue);
-        
-        // IZQUIERDA
-        crearIndicador(centroX - distancia - tamano, centroY - tamano/2, tamano, ColorRGBA.Green);
-        
-        // DERECHA
-        crearIndicador(centroX + distancia, centroY - tamano/2, tamano, ColorRGBA.Yellow);
-        
-        guiNode.attachChild(nodoDirecciones);
+    nodoDirecciones = new Node("IndicadoresDireccion");
+    
+    float centroX = ancho / 2;
+    float centroY = alto / 2;
+    float distancia = 120f; // Distancia desde el centro
+    float tamano = 70f; // Tamaño de los targets
+    
+    // ARRIBA
+    crearIndicadorConTextura(centroX - tamano/2, centroY + distancia, tamano, 
+        "Textures/target_arriba.png", ColorRGBA.Red, 0f);
+    
+    // ABAJO
+    crearIndicadorConTextura(centroX - tamano/2, centroY - distancia - tamano, tamano, 
+        "Textures/target_abajo.png", ColorRGBA.Blue, 180f);
+    
+    // IZQUIERDA
+    crearIndicadorConTextura(centroX - distancia - tamano, centroY - tamano/2, tamano, 
+        "Textures/target_izquierda.png", ColorRGBA.Green, 270f);
+    
+    // DERECHA
+    crearIndicadorConTextura(centroX + distancia, centroY - tamano/2, tamano, 
+        "Textures/target_derecha.png", ColorRGBA.Yellow, 90f);
+    
+    guiNode.attachChild(nodoDirecciones);
+}
+
+    /**
+ * ⭐ NUEVO: Crea los targets (flechas vacías) donde llegarán las flechas
+ */
+private void crearTargetsFlechas() {
+    float tamano = 80f;
+    float centroX = ancho / 2;
+    
+    // ⭐ Posición arriba (como en FNF)
+    float posY = alto - 150f;
+    float espaciado = 100f;
+    
+    System.out.println("🎯 Creando targets en Y=" + posY);
+    
+    // ⭐ USAR EL NOMBRE CORRECTO DE TU ARCHIVO
+    String rutaFlechaVacia = "Textures/flecha_vacia.png"; // Corregir "vacial" a "vacia"
+    
+    // IZQUIERDA
+    crearTarget(new Vector3f(centroX - espaciado * 1.5f, posY, 0), 
+                tamano, rutaFlechaVacia, 270f, "LEFT");
+    
+    // ABAJO
+    crearTarget(new Vector3f(centroX - espaciado * 0.5f, posY, 0), 
+                tamano, rutaFlechaVacia, 180f, "DOWN");
+    
+    // ARRIBA
+    crearTarget(new Vector3f(centroX + espaciado * 0.5f, posY, 0), 
+                tamano, rutaFlechaVacia, 0f, "UP");
+    
+    // DERECHA
+    crearTarget(new Vector3f(centroX + espaciado * 1.5f, posY, 0), 
+                tamano, rutaFlechaVacia, 90f, "RIGHT");
+    
+    // ⭐ LUNA abajo centrada
+    crearTarget(new Vector3f(centroX, 150f, 0), 
+                tamano * 1.2f, "Textures/flecha_especial_luna_vacia.png", 0f, "SPACE");
+}
+private void crearTarget(Vector3f posicion, float tamano, String rutaTextura, float rotacion, String left) {
+    Quad quad = new Quad(tamano, tamano);
+    Geometry geom = new Geometry("Target", quad);
+    Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+    
+    try {
+        Texture textura = app.getAssetManager().loadTexture(rutaTextura);
+        mat.setTexture("ColorMap", textura);
+        mat.setColor("Color", new ColorRGBA(1, 1, 1, 0.8f)); // Semi-transparente
+        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+    } catch (Exception e) {
+        System.err.println("⚠ No se pudo cargar textura de target: " + rutaTextura);
+        mat.setColor("Color", new ColorRGBA(0.5f, 0.5f, 0.5f, 0.5f)); // Fallback gris
+        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
     }
+    
+    geom.setMaterial(mat);
+    geom.setLocalTranslation(posicion.x - tamano/2, posicion.y - tamano/2, -0.5f);
+    
+    // Rotar si es necesario
+    if (rotacion != 0) {
+        geom.rotate(0, 0, rotacion * com.jme3.math.FastMath.DEG_TO_RAD);
+    }
+    
+    guiNode.attachChild(geom);
+}
+private void crearIndicadorConTextura(float x, float y, float tamano, String rutaTextura, 
+                                      ColorRGBA colorFallback, float rotacion) {
+    Quad quad = new Quad(tamano, tamano);
+    Geometry geom = new Geometry("Indicador", quad);
+    Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+    
+    try {
+        Texture textura = app.getAssetManager().loadTexture(rutaTextura);
+        mat.setTexture("ColorMap", textura);
+        mat.setColor("Color", new ColorRGBA(1, 1, 1, 0.6f)); // Semi-transparente
+    } catch (Exception e) {
+        // Fallback: usar color sólido
+        mat.setColor("Color", new ColorRGBA(colorFallback.r, colorFallback.g, colorFallback.b, 0.4f));
+    }
+    
+    mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+    geom.setMaterial(mat);
+    geom.setLocalTranslation(x, y, -0.5f);
+    
+    // Rotar si es necesario
+    if (rotacion != 0) {
+        geom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD);
+    }
+    
+    nodoDirecciones.attachChild(geom);
+}
     
     /**
      * Crea un indicador individual

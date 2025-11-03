@@ -41,45 +41,43 @@ public class FlechasGenerator {
      * @return Lista ordenada de flechas a generar
      */
     public List<FlechaData> generarFlechasCompletas(ResultadoAnalisis resultado) {
-        List<FlechaData> flechas = new ArrayList<>();
-        
-        System.out.println("\n=== GENERANDO FLECHAS ===");
-        System.out.println("Beats normales: " + resultado.beatsNormales.size());
-        System.out.println("Beats rápidos: " + resultado.beatsRapidos.size());
-        System.out.println("Beats lentos: " + resultado.beatsLentos.size());
-        
-        // Crear sets para búsqueda rápida
-        Set<Float> beatsRapidosSet = new HashSet<>(resultado.beatsRapidos);
-        Set<Float> beatsDoradsSet = new HashSet<>(resultado.beatsLentos);
-        
-        // Generar flechas para beats normales
-        for (float beatTime : resultado.beatsNormales) {
-            TipoFlecha tipo = determinarTipoFlecha(beatTime, beatsRapidosSet, beatsDoradsSet);
-            Direccion direccion = generarDireccionInteligente(tipo, beatTime);
-            
-            flechas.add(new FlechaData(beatTime, direccion, tipo));
+    List<FlechaData> flechas = new ArrayList<>();
+    
+    System.out.println("\n=== GENERANDO FLECHAS ===");
+    System.out.println("Beats normales: " + resultado.beatsNormales.size());
+    System.out.println("Beats rápidos: " + resultado.beatsRapidos.size());
+    System.out.println("Beats lentos: " + resultado.beatsLentos.size());
+    
+    Set<Float> beatsRapidosSet = new HashSet<>(resultado.beatsRapidos);
+    Set<Float> beatsDoradsSet = new HashSet<>(resultado.beatsLentos);
+    
+    // ⭐ Usar beatsLentos para flechas de LUNA
+    Set<Float> beatsLunaSet = new HashSet<>(resultado.beatsLentos);
+    
+    for (float beatTime : resultado.beatsNormales) {
+        // ⭐ Verificar si es un beat de luna
+        if (beatsLunaSet.contains(beatTime) && random.nextFloat() < 0.3f) {
+            // 30% de probabilidad de ser luna si está en beatsLentos
+            flechas.add(new FlechaData(beatTime, Direccion.ESPACIO, TipoFlecha.LUNA));
+            continue;
         }
         
-        // Agregar flechas rápidas adicionales (fills y dobles)
-        for (float beatTime : resultado.beatsRapidos) {
-            // Solo agregar si no hay una flecha normal muy cerca
-            if (!existeFlechaCerca(flechas, beatTime, 0.15f)) {
-                Direccion direccion = generarDireccionInteligente(TipoFlecha.RAPIDA, beatTime);
-                flechas.add(new FlechaData(beatTime, direccion, TipoFlecha.RAPIDA));
-            }
-        }
-        
-        // Ordenar por tiempo
-        flechas.sort(Comparator.comparing(FlechaData::getBeatTime));
-        
-        System.out.println("\nFlechas generadas:");
-        System.out.println("  - Normales: " + contarTipo(flechas, TipoFlecha.NORMAL));
-        System.out.println("  - Rápidas: " + contarTipo(flechas, TipoFlecha.RAPIDA));
-        System.out.println("  - Doradas: " + contarTipo(flechas, TipoFlecha.DORADA));
-        System.out.println("  - Total: " + flechas.size());
-        
-        return flechas;
+        TipoFlecha tipo = determinarTipoFlecha(beatTime, beatsRapidosSet, beatsDoradsSet);
+        Direccion direccion = generarDireccionInteligente(tipo, beatTime);
+        flechas.add(new FlechaData(beatTime, direccion, tipo));
     }
+    
+    flechas.sort(Comparator.comparing(FlechaData::getBeatTime));
+    
+    System.out.println("\nFlechas generadas:");
+    System.out.println(" - Normales: " + contarTipo(flechas, TipoFlecha.NORMAL));
+    System.out.println(" - Rápidas: " + contarTipo(flechas, TipoFlecha.RAPIDA));
+    System.out.println(" - Doradas: " + contarTipo(flechas, TipoFlecha.DORADA));
+    System.out.println(" - Luna: " + contarTipo(flechas, TipoFlecha.LUNA)); // ⭐ NUEVO
+    System.out.println(" - Total: " + flechas.size());
+    
+    return flechas;
+}
     
     /**
      * Determina el tipo de flecha basándose en el análisis

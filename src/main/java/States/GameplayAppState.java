@@ -28,6 +28,8 @@ import com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo;
 import java.util.*;
 import javax.swing.SwingUtilities;
 import com.jme3.app.SimpleApplication;
+import com.jme3.material.RenderState;
+import com.jme3.texture.Texture;
 
 /**
  * Estado del gameplay - Maneja la lógica del juego con el nuevo sistema de flechas
@@ -206,21 +208,30 @@ public class GameplayAppState extends BaseAppState {
     // ✨ MODIFICADO: Update ahora actualiza la UI
     @Override
     public void update(float tpf) {
-        tiempoTranscurrido += tpf;
-        
-        // ✨ NUEVO: Actualizar mensajes de feedback y combo en UI
-        if (gameplayUI != null) {
-            gameplayUI.actualizarFeedback(tpf);
-            gameplayUI.actualizarCombo(combo);
-        }
-        
-        generarFlechasPorTiempo();
-        verificarMisses();
-        
-        if (audioNode != null && audioNode.getStatus() == AudioSource.Status.Stopped) {
+    // ⭐ CRÍTICO: No actualizar si está deshabilitado
+    if (!isEnabled()) {
+        return;
+    }
+    
+    tiempoTranscurrido += tpf;
+    
+    // Actualizar mensajes de feedback y combo en UI
+    if (gameplayUI != null) {
+        gameplayUI.actualizarFeedback(tpf);
+        gameplayUI.actualizarCombo(combo);
+    }
+    
+    generarFlechasPorTiempo();
+    verificarMisses();
+    
+    // ⭐ SOLO verificar fin de canción si el audio existe y está reproduciendo
+    if (audioNode != null && audioNode.getStatus() == AudioSource.Status.Stopped) {
+        // ⭐ Verificar que no estemos ya procesando resultados
+        if (isEnabled()) {
             siguienteCancion();
         }
     }
+}
     
     private void generarFlechasPorTiempo() {
         while (indiceFlechaActual < flechasAGenerar.size()) {
@@ -237,45 +248,70 @@ public class GameplayAppState extends BaseAppState {
     }
     
     private void crearFlechaEnPantalla(FlechaData flechaData) {
-        Quad quad = new Quad(50, 50);
-        Geometry flechaGeom = new Geometry("Flecha", quad);
-        
-        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        
-        ColorRGBA color;
-        if (flechaData.getTipo() == TipoFlecha.DORADA) {
-            color = ColorRGBA.Yellow.mult(1.5f);
-        } else {
-            color = flechaData.getDireccion().getColor();
-        }
-        mat.setColor("Color", color);
-        
-        flechaGeom.setMaterial(mat);
-        
-        float ancho = app.getCamera().getWidth();
-        float alto = app.getCamera().getHeight();
-        Vector3f posInicial = flechaData.getDireccion().getPosicionSpawn(ancho, alto);
-        flechaGeom.setLocalTranslation(posInicial);
-        
-        flechaGeom.rotate(0, 0, flechaData.getDireccion().getRotacion() * FastMath.DEG_TO_RAD);
-        
-        FlechaControl control = new FlechaControl(
-            flechaData.getTipo(),
-            flechaData.getDireccion(),
-            posInicial,
-            centroPantalla,
-            flechaData.getVelocidad(),
-            flechaData.getBeatTime(),
-            mat
-        );
-        flechaGeom.addControl(control);
-        
-        gameNode.attachChild(flechaGeom);
-        flechasActivas.add(flechaGeom);
-        
-        System.out.println("Flecha generada: " + flechaData);
+    float tamano = 70f;
+    Quad quad = new Quad(tamano, tamano);
+    Geometry flechaGeom = new Geometry("Flecha", quad);
+    
+    Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+    
+    // ⭐ Determinar ruta de textura
+    String rutaTextura;
+    if (flechaData.getTipo() == TipoFlecha.LUNA) {
+        rutaTextura = "Textures/flecha_especial_luna.png";
+    } else if (flechaData.getTipo() == TipoFlecha.DORADA) {
+        rutaTextura = "Textures/flecha_dorada.png"; // ⭐ Usar flecha dorada
+    } else {
+        rutaTextura = flechaData.getDireccion().getTexturePath();
     }
     
+    System.out.println("📂 Intentando cargar: " + rutaTextura);
+    
+    try {
+        Texture textura = assetManager.loadTexture(rutaTextura);
+        mat.setTexture("ColorMap", textura);
+        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+        mat.setColor("Color", ColorRGBA.White);
+        
+        System.out.println("✓ Textura cargada: " + rutaTextura);
+        
+    } catch (Exception e) {
+        System.err.println("❌ ERROR cargando: " + rutaTextura);
+        System.err.println("   Detalle: " + e.getMessage());
+        e.printStackTrace();
+        
+        // Fallback: color sólido
+        mat.setColor("Color", flechaData.getDireccion().getColor());
+    }
+    
+    flechaGeom.setMaterial(mat);
+    
+    float ancho = app.getCamera().getWidth();
+    float alto = app.getCamera().getHeight();
+    
+    Vector3f posInicial = flechaData.getDireccion().getPosicionSpawn(ancho, alto);
+    Vector3f posTarget = flechaData.getDireccion().getPosicionTarget(ancho, alto);
+    
+    flechaGeom.setLocalTranslation(posInicial.x - tamano/2, posInicial.y - tamano/2, 0);
+    
+    float rotacion = flechaData.getDireccion().getRotacion();
+    if (rotacion != 0) {
+        flechaGeom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD);
+    }
+    
+    FlechaControl control = new FlechaControl(
+        flechaData.getTipo(),
+        flechaData.getDireccion(),
+        posInicial,
+        posTarget,
+        flechaData.getVelocidad(),
+        flechaData.getBeatTime(),
+        mat
+    );
+    
+    flechaGeom.addControl(control);
+    gameNode.attachChild(flechaGeom);
+    flechasActivas.add(flechaGeom);
+}
     private void verificarMisses() {
         Iterator<Geometry> iterator = flechasActivas.iterator();
         while (iterator.hasNext()) {
@@ -295,35 +331,38 @@ public class GameplayAppState extends BaseAppState {
     }
     
     private void setupInputs() {
-        mappingTeclas = new HashMap<>();
-        mappingTeclas.put(Direccion.ARRIBA, "Arriba");
-        mappingTeclas.put(Direccion.ABAJO, "Abajo");
-        mappingTeclas.put(Direccion.IZQUIERDA, "Izquierda");
-        mappingTeclas.put(Direccion.DERECHA, "Derecha");
+    mappingTeclas = new HashMap<>();
+    mappingTeclas.put(Direccion.ARRIBA, "Arriba");
+    mappingTeclas.put(Direccion.ABAJO, "Abajo");
+    mappingTeclas.put(Direccion.IZQUIERDA, "Izquierda");
+    mappingTeclas.put(Direccion.DERECHA, "Derecha");
+    mappingTeclas.put(Direccion.ESPACIO, "Espacio"); // ⭐ NUEVO
+    
+    // ⭐ Mapear teclas según tu especificación
+    app.getInputManager().addMapping("Arriba", new KeyTrigger(KeyInput.KEY_W));
+    app.getInputManager().addMapping("Abajo", new KeyTrigger(KeyInput.KEY_DOWN));
+    app.getInputManager().addMapping("Izquierda", new KeyTrigger(KeyInput.KEY_A));
+    app.getInputManager().addMapping("Derecha", new KeyTrigger(KeyInput.KEY_RIGHT));
+    app.getInputManager().addMapping("Espacio", new KeyTrigger(KeyInput.KEY_SPACE)); // ⭐ NUEVO
+    
+    ActionListener inputListener = (name, isPressed, tpf) -> {
+        if (!isPressed) return;
         
-        app.getInputManager().addMapping("Arriba", new KeyTrigger(KeyInput.KEY_UP), new KeyTrigger(KeyInput.KEY_W));
-        app.getInputManager().addMapping("Abajo", new KeyTrigger(KeyInput.KEY_DOWN), new KeyTrigger(KeyInput.KEY_S));
-        app.getInputManager().addMapping("Izquierda", new KeyTrigger(KeyInput.KEY_LEFT), new KeyTrigger(KeyInput.KEY_A));
-        app.getInputManager().addMapping("Derecha", new KeyTrigger(KeyInput.KEY_RIGHT), new KeyTrigger(KeyInput.KEY_D));
-        
-        ActionListener inputListener = (name, isPressed, tpf) -> {
-            if (!isPressed) return;
-            
-            Direccion direccionPresionada = null;
-            for (Map.Entry<Direccion, String> entry : mappingTeclas.entrySet()) {
-                if (entry.getValue().equals(name)) {
-                    direccionPresionada = entry.getKey();
-                    break;
-                }
+        Direccion direccionPresionada = null;
+        for (Map.Entry<Direccion, String> entry : mappingTeclas.entrySet()) {
+            if (entry.getValue().equals(name)) {
+                direccionPresionada = entry.getKey();
+                break;
             }
-            
-            if (direccionPresionada != null) {
-                procesarInput(direccionPresionada);
-            }
-        };
+        }
         
-        app.getInputManager().addListener(inputListener, "Arriba", "Abajo", "Izquierda", "Derecha");
-    }
+        if (direccionPresionada != null) {
+            procesarInput(direccionPresionada);
+        }
+    };
+    
+    app.getInputManager().addListener(inputListener, "Arriba", "Abajo", "Izquierda", "Derecha", "Espacio");
+}
     
     private void procesarInput(Direccion direccion) {
         FlechaControl flechaMasCercana = null;
@@ -423,46 +462,134 @@ public class GameplayAppState extends BaseAppState {
         }
     }
     
-    private void siguienteCancion() {
-        if (audioNode != null) {
-            audioNode.stop();
+    private boolean procesandoResultados = false; // ⭐ NUEVO: Bandera para evitar múltiples llamadas
+private void verificarTexturas() {
+    String[] texturas = {
+        "Textures/flecha_vacia.png",
+        "Textures/flecha_especial_luna_vacia.png",
+        "Textures/flecha_azul.png",
+        "Textures/flecha_roja.png",
+        "Textures/flecha_especial_luna.png",
+        "Textures/flecha_dorada.png"
+    };
+    
+    boolean todasCargadas = true;
+    
+    for (String ruta : texturas) {
+        try {
+            Texture tex = assetManager.loadTexture(ruta);
+            System.out.println("✓ " + ruta + " - OK (" + tex.getImage().getWidth() + "x" + tex.getImage().getHeight() + "px)");
+        } catch (Exception e) {
+            System.err.println("✗ " + ruta + " - NO ENCONTRADA");
+            System.err.println("   Error: " + e.getMessage());
+            todasCargadas = false;
+        }
+    }
+    
+    if (!todasCargadas) {
+        System.err.println("\n⚠⚠⚠ FALTAN TEXTURAS - Verifica los nombres de archivos ⚠⚠⚠");
+        System.err.println("Archivos esperados en assets/Textures/:");
+        for (String t : texturas) {
+            System.err.println("  - " + t.replace("Textures/", ""));
+        }
+    } else {
+        System.out.println("✅ TODAS LAS TEXTURAS CARGADAS CORRECTAMENTE");
+    }
+    
+    System.out.println("============================\n");
+}
+private void siguienteCancion() {
+    // ⭐ Evitar múltiples ejecuciones
+    if (procesandoResultados) {
+        return;
+    }
+    procesandoResultados = true;
+    
+    // Detener la música
+    if (audioNode != null) {
+        audioNode.stop();
+    }
+    
+    // ⭐ Pausar el update del gameplay INMEDIATAMENTE
+    this.setEnabled(false);
+    
+    System.out.println("\n=== CANCIÓN FINALIZADA - MOSTRANDO RESULTADOS ===");
+    
+    // Guardar estadísticas
+    final String nombreCancion = canciones.get(cancionActual);
+    final int scoreFinal = score;
+    final int comboFinal = maxCombo;
+    final int perfectosFinal = perfectos;
+    final int buenosFinal = buenos;
+    final int malosFinal = malos;
+    final int missesFinal = misses;
+    final int vidaFinal = vida;
+    
+    // Ocultar el HUD
+    if (gameplayUI != null) {
+        gameplayUI.ocultarTemporalmente();
+    }
+    
+    // ⭐ Esperar 1 segundo antes de mostrar resultados
+    new Thread(() -> {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
         
         SwingUtilities.invokeLater(() -> {
             java.awt.Frame parentFrame = obtenerFramePadre();
+            
+            System.out.println("Abriendo ventana de resultados...");
+            
+            // Mostrar ventana de resultados (BLOQUEANTE)
             boolean continuar = VentanaResultados.mostrarResultados(
                 parentFrame,
-                canciones.get(cancionActual),
-                score,
-                maxCombo,
-                perfectos,
-                buenos,
-                malos,
-                misses,
-                vida
+                nombreCancion,
+                scoreFinal,
+                comboFinal,
+                perfectosFinal,
+                buenosFinal,
+                malosFinal,
+                missesFinal,
+                vidaFinal
             );
             
+            System.out.println("Ventana cerrada. Continuar: " + continuar);
+            
+            // Procesar decisión en el thread de JME
             app.enqueue(() -> {
                 if (continuar && cancionActual + 1 < canciones.size()) {
                     cancionActual++;
                     
-                    // ✨ NUEVO: Cargar análisis de la siguiente canción
                     String siguienteCancion = canciones.get(cancionActual);
                     analisisActual = analisisCompleto.get(siguienteCancion);
                     
                     reiniciarEstadisticasCancion();
+                    
                     System.out.println("\n=== SIGUIENTE CANCIÓN ===");
                     tiempoTranscurrido = 0f;
                     flechasActivas.clear();
                     
-                    // ✨ NUEVO: Actualizar UI para la nueva canción
+                    // Limpiar escena
+                    gameNode.detachAllChildren();
+                    crearAreaJuego();
+                    
+                    // Restaurar UI
                     if (gameplayUI != null) {
+                        gameplayUI.mostrarNuevamente();
                         gameplayUI.actualizarVida(vida);
                         gameplayUI.actualizarScore(score);
                         gameplayUI.actualizarCombo(combo);
                     }
                     
                     generarFlechasCancion();
+                    
+                    // ⭐ Reactivar gameplay
+                    procesandoResultados = false;
+                    this.setEnabled(true);
+                    
                     reproducirCancionActual();
                 } else {
                     finDelJuego();
@@ -470,7 +597,8 @@ public class GameplayAppState extends BaseAppState {
                 return null;
             });
         });
-    }
+    }, "ResultadosThread").start();
+}
     
     private void reiniciarEstadisticasCancion() {
         perfectos = 0;
@@ -490,16 +618,58 @@ public class GameplayAppState extends BaseAppState {
     }
     
     private void gameOver() {
-        System.out.println("\n=== GAME OVER ===");
-        mostrarEstadisticas();
-        app.volverAlMenu();
+    System.out.println("\n=== GAME OVER ===");
+    
+    // ⭐ Pausar el gameplay
+    this.setEnabled(false);
+    
+    // ⭐ Ocultar UI
+    if (gameplayUI != null) {
+        gameplayUI.ocultarTemporalmente();
     }
     
-    private void finDelJuego() {
-        System.out.println("\n=== ¡JUEGO COMPLETADO! ===");
-        mostrarEstadisticas();
-        app.volverAlMenu();
+    // Esperar antes de volver al menú
+    new Thread(() -> {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        
+        app.enqueue(() -> {
+            mostrarEstadisticas();
+            app.volverAlMenu();
+            return null;
+        });
+    }, "GameOverThread").start();
+}
+
+private void finDelJuego() {
+    System.out.println("\n=== ¡JUEGO COMPLETADO! ===");
+    
+    // ⭐ Pausar el gameplay
+    this.setEnabled(false);
+    
+    // ⭐ Ocultar UI
+    if (gameplayUI != null) {
+        gameplayUI.ocultarTemporalmente();
     }
+    
+    // Esperar antes de volver al menú
+    new Thread(() -> {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        
+        app.enqueue(() -> {
+            mostrarEstadisticas();
+            app.volverAlMenu();
+            return null;
+        });
+    }, "FinJuegoThread").start();
+}
     
     private void mostrarEstadisticas() {
         System.out.println("Score Final: " + score);
