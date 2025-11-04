@@ -199,22 +199,34 @@ public class MenuPausa {
         app.getInputManager().addMapping("MenuAbajo", new KeyTrigger(KeyInput.KEY_DOWN));
         app.getInputManager().addMapping("MenuSeleccionar", new KeyTrigger(KeyInput.KEY_RETURN));
 
-        // Listener
+        // ⭐ CRÍTICO: Listener que verifica el estado de pausa antes de ejecutar acciones
         inputListener = (name, isPressed, tpf) -> {
-            if (!isPressed) return;
+            // Solo procesar cuando se SUELTA la tecla (isPressed == false)
+            // Esto evita que se ejecute múltiples veces
+            if (isPressed) return;
 
             switch (name) {
                 case "Pausa":
+                    System.out.println("🔘 Tecla ESC detectada - Toggle pausa");
                     togglePausa();
                     break;
                 case "MenuArriba":
-                    if (pausado) navegarMenu(-1);
+                    if (pausado) {
+                        System.out.println("↑ Navegando arriba en menú");
+                        navegarMenu(-1);
+                    }
                     break;
                 case "MenuAbajo":
-                    if (pausado) navegarMenu(1);
+                    if (pausado) {
+                        System.out.println("↓ Navegando abajo en menú");
+                        navegarMenu(1);
+                    }
                     break;
                 case "MenuSeleccionar":
-                    if (pausado) ejecutarBotonSeleccionado();
+                    if (pausado) {
+                        System.out.println("✓ Seleccionando opción del menú");
+                        ejecutarBotonSeleccionado();
+                    }
                     break;
             }
         };
@@ -228,48 +240,76 @@ public class MenuPausa {
     // ==================== LÓGICA DEL MENÚ ====================
 
     public void togglePausa() {
+        System.out.println("\n🔄 TOGGLE PAUSA LLAMADO");
+        System.out.println("  - Estado actual pausado: " + pausado);
+        
         if (pausado) {
+            System.out.println("  → Acción: REANUDAR");
             reanudar();
         } else {
+            System.out.println("  → Acción: PAUSAR");
             pausar();
         }
+        
+        System.out.println("  - Estado final pausado: " + pausado + "\n");
     }
 
     public void pausar() {
-        if (pausado) return;
+        if (pausado) {
+            System.out.println("⚠ Ya estaba pausado, ignorando");
+            return;
+        }
 
         pausado = true;
         botonSeleccionado = 0;
 
+        System.out.println("⏸ PAUSANDO JUEGO...");
+        System.out.println("  - Estado pausado: " + pausado);
+        System.out.println("  - Mostrando menú de pausa");
+
         // Mostrar menú
-        guiNode.attachChild(menuPausaNode);
+        if (menuPausaNode.getParent() == null) {
+            guiNode.attachChild(menuPausaNode);
+            System.out.println("  ✓ Menú de pausa añadido al GuiNode");
+        }
+        
         actualizarSeleccionVisual();
 
         // ⭐ NUEVO: Notificar cambio de pausa al GameplayAppState
         if (onCambioPausa != null) {
             onCambioPausa.accept(true);
+            System.out.println("  ✓ Notificado cambio de pausa (PAUSADO) al GameplayAppState");
         }
 
-        System.out.println("⏸ JUEGO PAUSADO");
+        System.out.println("✓ JUEGO PAUSADO EXITOSAMENTE");
     }
 
     public void reanudar() {
-        if (!pausado) return;
+        if (!pausado) {
+            System.out.println("⚠ No estaba pausado, ignorando");
+            return;
+        }
+
+        System.out.println("▶ REANUDANDO JUEGO...");
 
         pausado = false;
-
         menuPausaNode.removeFromParent();
+
+        System.out.println("  - Estado pausado: " + pausado);
+        System.out.println("  - Menú de pausa removido");
 
         // ⭐ NUEVO: Notificar cambio de pausa al GameplayAppState
         if (onCambioPausa != null) {
             onCambioPausa.accept(false);
+            System.out.println("  ✓ Notificado cambio de pausa (REANUDADO) al GameplayAppState");
         }
 
         if (onReanudar != null) {
             onReanudar.run();
+            System.out.println("  ✓ Callback onReanudar ejecutado");
         }
 
-        System.out.println("▶ JUEGO REANUDADO");
+        System.out.println("✓ JUEGO REANUDADO EXITOSAMENTE");
     }
 
     private void toggleMusica() {
@@ -294,14 +334,23 @@ public class MenuPausa {
     }
 
     private void volverAlMenu() {
+        System.out.println("\n⚠️ VOLVER AL MENÚ PRINCIPAL LLAMADO");
+        System.out.println("  - Estado pausado antes: " + pausado);
+        
         pausado = false;
+        
+        System.out.println("  - Removiendo menú de pausa del GuiNode");
         menuPausaNode.removeFromParent();
 
+        System.out.println("  - Estado pausado después: " + pausado);
+
         if (onVolverAlMenu != null) {
+            System.out.println("  - Ejecutando callback onVolverAlMenu...");
             onVolverAlMenu.run();
+            System.out.println("  ✓ Callback ejecutado");
         }
 
-        System.out.println("⌂ Volviendo al menú principal...");
+        System.out.println("⌂ Volviendo al menú principal...\n");
     }
 
     // ==================== NAVEGACIÓN ====================
@@ -344,7 +393,16 @@ public class MenuPausa {
 
     private void ejecutarBotonSeleccionado() {
         if (botonSeleccionado >= 0 && botonSeleccionado < botones.size()) {
-            botones.get(botonSeleccionado).accion.run();
+            BotonMenu boton = botones.get(botonSeleccionado);
+            
+            System.out.println("\n🔘 Ejecutando acción del botón: " + boton.textoOriginal);
+            System.out.println("  - Índice: " + botonSeleccionado);
+            System.out.println("  - Estado pausado antes: " + pausado);
+            
+            // Ejecutar la acción del botón
+            boton.accion.run();
+            
+            System.out.println("  - Estado pausado después: " + pausado + "\n");
         }
     }
 
