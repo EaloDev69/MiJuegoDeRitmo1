@@ -217,4 +217,3 @@ public class VentanaResultados extends JDialog {
         return ventana.getContinuar();
     }
 }  
-
