@@ -12,6 +12,7 @@ import com.jme3.material.Material;
 import com.jme3.material.RenderState;
 import com.jme3.material.RenderState.BlendMode;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
@@ -21,10 +22,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * GameplayUI - RUTAS DE TEXTURAS CORREGIDAS
+ * GameplayUI - SISTEMA CON OBJETO CENTRAL BRILLANTE
  * 
- * ✅ Rutas actualizadas a assets/Texture/
- * ✅ BlendMode.Alpha activado
+ * ✅ Objeto central que recibe las flechas
+ * ✅ Sistema de brillo para mecánica ESPACIO
+ * ✅ Efectos visuales mejorados
+ * 
+ * @author CamiLaNekoUwU_Gamer
  */
 public class GameplayUI {
 
@@ -36,7 +40,18 @@ public class GameplayUI {
     
     private Node uiRootNode;
     
-    // Elementos de la UI
+    // ==================== OBJETO CENTRAL (NUEVO) ====================
+    private Geometry objetoCentral;
+    private Material materialObjetoCentral;
+    private float tiempoBrilloEspacio = 0f;
+    private boolean brillandoEspacio = false;
+    private ColorRGBA colorBaseObjetoCentral;
+    
+    // Efecto de pulso constante
+    private float tiempoPulso = 0f;
+    private static final float VELOCIDAD_PULSO = 2.0f;
+    
+    // ==================== UI TRADICIONAL ====================
     private Geometry barraVidaFondo;
     private Geometry barraVidaActual;
     private BitmapText txtVidaPorcentaje;
@@ -47,8 +62,9 @@ public class GameplayUI {
     private int vidaMaxima = 100;
     private int vidaActual = 100;
     
-    // Targets (flechas vacías)
-    private Node nodoTargets;
+    // Targets ya no se usan (las flechas van al objeto central)
+    // Pero los dejamos por compatibilidad si quieres indicadores visuales
+    private Node nodoIndicadoresDireccionales;
     
     // Feedback temporal
     private List<MensajeFeedback> mensajesFeedback;
@@ -71,7 +87,7 @@ public class GameplayUI {
         this.alto = app.getCamera().getHeight();
         this.mensajesFeedback = new ArrayList<>();
         
-        System.out.println("\n🎨 Inicializando GameplayUI...");
+        System.out.println("\n🎨 Inicializando GameplayUI con objeto central...");
         System.out.println("  Dimensiones: " + ancho + "x" + alto);
         
         inicializarUI();
@@ -83,7 +99,13 @@ public class GameplayUI {
     private void inicializarUI() {
         uiRootNode = new Node("GameplayUIRoot");
         
-        crearTargetsFlechas();
+        // ⭐ ORDEN IMPORTANTE: Crear objeto central PRIMERO
+        crearObjetoCentral();
+        
+        // Indicadores direccionales opcionales (flechas pequeñas en los bordes)
+        crearIndicadoresDireccionales();
+        
+        // UI tradicional
         crearBarraVida();
         crearTextoScore();
         crearTextoCombo();
@@ -94,11 +116,242 @@ public class GameplayUI {
         System.out.println("  ✓ GameplayUIRoot añadido al GuiNode");
     }
 
+    // ==================== ⭐ OBJETO CENTRAL (NUEVO) ====================
+    
+    /**
+     * Crea el objeto central que brilla con ESPACIO
+     * Este es el objetivo hacia el que convergen todas las flechas
+     */
+    private void crearObjetoCentral() {
+        System.out.println("\n  ⭐ Creando objeto central...");
+        
+        float tamano = 150f; // Tamaño del objeto central
+        float centroX = ancho / 2;
+        float centroY = alto / 2;
+        
+        // Intentar cargar textura del protagonista/astronauta
+        String rutaTextura = "assets/Texture/Protagonista/astronautaPoseDefault.png";
+        
+        try {
+            System.out.println("  → Cargando textura: " + rutaTextura);
+            
+            Texture texture = app.getAssetManager().loadTexture(rutaTextura);
+            
+            materialObjetoCentral = new Material(app.getAssetManager(),
+                "Common/MatDefs/Misc/Unshaded.j3md");
+            materialObjetoCentral.setTexture("ColorMap", texture);
+            materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+            
+            // Color base con ligero brillo
+            colorBaseObjetoCentral = new ColorRGBA(1.1f, 1.1f, 1.1f, 1.0f);
+            materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+            
+            objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
+            objetoCentral.setMaterial(materialObjetoCentral);
+            
+            // Posicionar en el centro exacto
+            objetoCentral.setLocalTranslation(
+                centroX - tamano/2, 
+                centroY - tamano/2, 
+                5 // Z más alto que las flechas para estar siempre visible
+            );
+            
+            uiRootNode.attachChild(objetoCentral);
+            
+            System.out.println("  ✓ Objeto central creado exitosamente");
+            System.out.println("    - Tamaño: " + tamano + "x" + tamano);
+            System.out.println("    - Posición: Centro (" + centroX + ", " + centroY + ")");
+            
+        } catch (Exception e) {
+            System.err.println("  ❌ Error cargando textura: " + e.getMessage());
+            System.err.println("  ⚠ Creando objeto central de respaldo...");
+            crearObjetoCentralFallback(centroX, centroY, tamano);
+        }
+    }
+
+    /**
+     * Crea un objeto central de respaldo (círculo brillante)
+     */
+    private void crearObjetoCentralFallback(float centroX, float centroY, float tamano) {
+        materialObjetoCentral = new Material(app.getAssetManager(),
+            "Common/MatDefs/Misc/Unshaded.j3md");
+        
+        // Color base: blanco brillante
+        colorBaseObjetoCentral = new ColorRGBA(1.2f, 1.2f, 1.4f, 0.9f);
+        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+        materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
+        objetoCentral.setMaterial(materialObjetoCentral);
+        objetoCentral.setLocalTranslation(
+            centroX - tamano/2, 
+            centroY - tamano/2, 
+            5
+        );
+        
+        uiRootNode.attachChild(objetoCentral);
+        
+        System.out.println("  ✓ Objeto central de respaldo creado (cuadrado brillante)");
+    }
+
+    // ==================== 🌟 SISTEMA DE BRILLO ====================
+    
+    /**
+     * Activa el efecto de brillo cuando se presiona ESPACIO
+     * Llamar desde GameplayAppState cuando se detecte input de ESPACIO
+     */
+    public void activarBrilloEspacio() {
+        brillandoEspacio = true;
+        tiempoBrilloEspacio = 0f;
+        
+        if (materialObjetoCentral != null) {
+            // Brillo intenso blanco-azul-cyan
+            materialObjetoCentral.setColor("Color", 
+                new ColorRGBA(3.0f, 3.0f, 4.0f, 1.0f));
+        }
+        
+        System.out.println("✨ Objeto central BRILLANDO - Mecánica ESPACIO activada");
+    }
+
+    /**
+     * Actualiza el efecto de brillo del objeto central
+     * Debe llamarse en cada frame desde GameplayAppState.update()
+     */
+    public void actualizarBrilloObjetoCentral(float tpf) {
+        if (objetoCentral == null || materialObjetoCentral == null) return;
+        
+        // ========== EFECTO DE BRILLO DE ESPACIO ==========
+        if (brillandoEspacio) {
+            tiempoBrilloEspacio += tpf;
+            
+            float duracionBrillo = 0.4f; // Duración del flash
+            
+            if (tiempoBrilloEspacio < duracionBrillo) {
+                // Fade out suave del brillo
+                float progreso = tiempoBrilloEspacio / duracionBrillo;
+                float intensidad = 1.0f + (3.0f * (1.0f - progreso)); // De 4.0 a 1.0
+                
+                // Color que va de cyan brillante a blanco normal
+                float r = intensidad;
+                float g = intensidad;
+                float b = intensidad + (3.0f * (1.0f - progreso)); // Más azul al inicio
+                
+                materialObjetoCentral.setColor("Color", 
+                    new ColorRGBA(r, g, b, 1.0f));
+            } else {
+                // Terminar el brillo, volver a pulso normal
+                brillandoEspacio = false;
+                materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+            }
+        } 
+        // ========== EFECTO DE PULSO CONSTANTE ==========
+        else {
+            tiempoPulso += tpf * VELOCIDAD_PULSO;
+            
+            // Oscilación suave usando seno
+            float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
+            
+            ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
+            materialObjetoCentral.setColor("Color", colorPulso);
+        }
+    }
+
+    /**
+     * Activa un brillo suave al golpear una flecha normal
+     * Feedback visual para hits exitosos
+     */
+    public void activarBrilloHit(ColorRGBA colorFlecha) {
+        if (materialObjetoCentral == null) return;
+        
+        // Mezclar el color de la flecha con el objeto central brevemente
+        ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha).mult(0.7f);
+        colorMezclado.a = 1.0f;
+        
+        materialObjetoCentral.setColor("Color", colorMezclado);
+        
+        // El pulso normal lo restaurará gradualmente
+        System.out.println("💫 Hit registrado - Brillo de color");
+    }
+
+    // ==================== 📍 INDICADORES DIRECCIONALES (OPCIONAL) ====================
+    
+    /**
+     * Crea pequeños indicadores en los bordes de la pantalla
+     * Para mostrar de qué lado vienen las flechas
+     * OPCIONAL: Puedes comentar esta sección si no los quieres
+     */
+    private void crearIndicadoresDireccionales() {
+        System.out.println("\n  📍 Creando indicadores direccionales...");
+        
+        nodoIndicadoresDireccionales = new Node("IndicadoresDireccionales");
+        
+        float tamanoIndicador = 50f;
+        float margen = 80f;
+        float centroX = ancho / 2f;
+        float centroY = alto / 2f;
+        
+        // Indicador IZQUIERDA
+        crearIndicadorDireccional("←", centroX - ancho/2 + margen, centroY, 
+            tamanoIndicador, new ColorRGBA(1f, 0.3f, 0.3f, 0.5f));
+        
+        // Indicador DERECHA
+        crearIndicadorDireccional("→", centroX + ancho/2 - margen - tamanoIndicador, centroY, 
+            tamanoIndicador, new ColorRGBA(1f, 0.3f, 0.3f, 0.5f));
+        
+        // Indicador ARRIBA
+        crearIndicadorDireccional("↑", centroX, centroY + alto/2 - margen - tamanoIndicador, 
+            tamanoIndicador, new ColorRGBA(0.3f, 0.3f, 1f, 0.5f));
+        
+        // Indicador ABAJO
+        crearIndicadorDireccional("↓", centroX, centroY - alto/2 + margen, 
+            tamanoIndicador, new ColorRGBA(0.3f, 0.3f, 1f, 0.5f));
+        
+        uiRootNode.attachChild(nodoIndicadoresDireccionales);
+        System.out.println("  ✓ Indicadores direccionales creados");
+    }
+
+    private void crearIndicadorDireccional(String simbolo, float x, float y, 
+                                          float tamano, ColorRGBA color) {
+        // Fondo semi-transparente
+        Quad quad = new Quad(tamano, tamano);
+        Geometry indicador = new Geometry("Indicador-" + simbolo, quad);
+        
+        Material mat = new Material(app.getAssetManager(), 
+            "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", color);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        indicador.setMaterial(mat);
+        indicador.setLocalTranslation(x - tamano/2, y - tamano/2, 0.2f);
+        
+        nodoIndicadoresDireccionales.attachChild(indicador);
+        
+        // Texto del símbolo
+        BitmapText txtSimbolo = new BitmapText(font);
+        txtSimbolo.setSize(30f);
+        txtSimbolo.setColor(ColorRGBA.White);
+        txtSimbolo.setText(simbolo);
+        txtSimbolo.setLocalTranslation(x - 10f, y + 10f, 0.3f);
+        
+        nodoIndicadoresDireccionales.attachChild(txtSimbolo);
+    }
+
+    // ==================== 📊 VERIFICACIÓN ====================
+    
     private void verificarVisibilidad() {
         System.out.println("\n🔍 Verificando visibilidad de elementos:");
         
         int elementosVisibles = 0;
         int elementosTotales = 0;
+        
+        // Verificar objeto central
+        if (objetoCentral != null && objetoCentral.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Objeto central: VISIBLE");
+        } else {
+            System.out.println("  ✗ Objeto central: NO VISIBLE");
+        }
+        elementosTotales++;
         
         if (barraVidaFondo != null && barraVidaFondo.getParent() != null) {
             elementosVisibles++;
@@ -116,14 +369,6 @@ public class GameplayUI {
         }
         elementosTotales++;
         
-        if (txtVidaPorcentaje != null && txtVidaPorcentaje.getParent() != null) {
-            elementosVisibles++;
-            System.out.println("  ✓ Texto vida: VISIBLE");
-        } else {
-            System.out.println("  ✗ Texto vida: NO VISIBLE");
-        }
-        elementosTotales++;
-        
         if (txtScore != null && txtScore.getParent() != null) {
             elementosVisibles++;
             System.out.println("  ✓ Texto score: VISIBLE");
@@ -132,168 +377,15 @@ public class GameplayUI {
         }
         elementosTotales++;
         
-        if (btnPausa != null && btnPausa.getParent() != null) {
+        if (nodoIndicadoresDireccionales != null && nodoIndicadoresDireccionales.getParent() != null) {
             elementosVisibles++;
-            System.out.println("  ✓ Botón pausa: VISIBLE");
-        } else {
-            System.out.println("  ✗ Botón pausa: NO VISIBLE");
+            System.out.println("  ✓ Indicadores: VISIBLES (" + 
+                nodoIndicadoresDireccionales.getChildren().size() + " elementos)");
         }
         elementosTotales++;
         
-        if (nodoTargets != null && nodoTargets.getParent() != null) {
-            elementosVisibles++;
-            System.out.println("  ✓ Targets: VISIBLES (" + nodoTargets.getChildren().size() + " elementos)");
-        } else {
-            System.out.println("  ✗ Targets: NO VISIBLES");
-        }
-        elementosTotales++;
-        
-        System.out.println("\n  📊 Resumen: " + elementosVisibles + "/" + elementosTotales + " elementos visibles");
-    }
-
-    // ==================== 🎯 TARGETS (FLECHAS VACÍAS) - CORREGIDO ====================
-    
-    /**
-     * ⭐ CORREGIDO: Crea los targets con rutas actualizadas
-     */
-    private void crearTargetsFlechas() {
-        System.out.println("\n  🎯 Creando targets de flechas...");
-        
-        float tamano = 90f;
-        float espaciado = 100f;
-        float alturaTarget = alto - 150f;
-        float centroX = ancho / 2f;
-        
-        nodoTargets = new Node("TargetsFlechas");
-        
-        System.out.println("  - Altura targets: " + alturaTarget);
-        System.out.println("  - Tamaño: " + tamano + "x" + tamano);
-        System.out.println("  - Espaciado: " + espaciado);
-        
-        // 1. IZQUIERDA (LEFT)
-        Vector3f posLeft = new Vector3f(centroX - espaciado * 1.5f, alturaTarget, 0.5f);
-        crearSpriteTarget("LEFT", posLeft, tamano, 270f);
-        
-        // 2. ABAJO (DOWN)
-        Vector3f posDown = new Vector3f(centroX - espaciado * 0.5f, alturaTarget, 0.5f);
-        crearSpriteTarget("DOWN", posDown, tamano, 180f);
-        
-        // 3. ARRIBA (UP)
-        Vector3f posUp = new Vector3f(centroX + espaciado * 0.5f, alturaTarget, 0.5f);
-        crearSpriteTarget("UP", posUp, tamano, 0f);
-        
-        // 4. DERECHA (RIGHT)
-        Vector3f posRight = new Vector3f(centroX + espaciado * 1.5f, alturaTarget, 0.5f);
-        crearSpriteTarget("RIGHT", posRight, tamano, 90f);
-        
-        // 5. LUNA/ESPACIO (centro abajo)
-        Vector3f posLuna = new Vector3f(centroX, 120f, 0.5f);
-        crearSpriteTarget("LUNA", posLuna, tamano * 1.2f, 0f);
-        
-        uiRootNode.attachChild(nodoTargets);
-        System.out.println("  ✓ Nodo de targets añadido al UIRoot");
-    }
-
-    /**
-     * ⭐ CRÍTICO: Crea un sprite de target con rutas corregidas
-     */
-    private void crearSpriteTarget(String dirName, Vector3f pos, float tamano, float rotacion) {
-        // ⭐ RUTAS CORREGIDAS según tu estructura
-        String rutaTextura;
-        
-        switch (dirName) {
-            case "LEFT":
-            case "DOWN":
-            case "UP":
-            case "RIGHT":
-                rutaTextura = "assets/Texture/flecha_vacia.png";
-                break;
-            case "LUNA":
-                rutaTextura = "assets/Texture/flecha_especial_luna_vacia.png";
-                break;
-            default:
-                rutaTextura = "assets/Texture/flecha_vacia.png";
-        }
-        
-        try {
-            // Cargar textura
-            Texture texture = app.getAssetManager().loadTexture(rutaTextura);
-            
-            // Crear material
-            Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-            mat.setTexture("ColorMap", texture);
-            
-            // ⭐ CRÍTICO: Activar transparencia para PNGs
-            mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-            
-            // Color semi-transparente
-            mat.setColor("Color", new ColorRGBA(1f, 1f, 1f, 0.7f));
-            
-            // Crear geometría
-            Geometry target = new Geometry("Target-" + dirName, new Quad(tamano, tamano));
-            target.setMaterial(mat);
-            
-            // Posicionar (centrado)
-            target.setLocalTranslation(pos.x - tamano/2, pos.y - tamano/2, pos.z);
-            
-            // Rotar si es necesario
-            if (rotacion != 0) {
-                target.rotate(0, 0, rotacion * com.jme3.math.FastMath.DEG_TO_RAD);
-            }
-            
-            // Anclar
-            nodoTargets.attachChild(target);
-            
-            System.out.println("  ✓ Target " + dirName + " cargado desde: " + rutaTextura);
-            
-        } catch (Exception e) {
-            System.err.println("  ❌ No se pudo cargar target " + dirName + ": " + e.getMessage());
-            System.err.println("  ⚠ Creando fallback...");
-            crearTargetFallback(dirName, pos, tamano, rotacion);
-        }
-    }
-
-    /**
-     * ⭐ FALLBACK: Crea un target de color si no se encuentra la textura
-     */
-    private void crearTargetFallback(String dirName, Vector3f pos, float tamano, float rotacion) {
-        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        
-        // Color según dirección
-        ColorRGBA color;
-        switch (dirName) {
-            case "LEFT":
-                color = new ColorRGBA(1f, 0f, 0f, 0.5f); // Rojo
-                break;
-            case "DOWN":
-                color = new ColorRGBA(0f, 0f, 1f, 0.5f); // Azul
-                break;
-            case "UP":
-                color = new ColorRGBA(0f, 1f, 0f, 0.5f); // Verde
-                break;
-            case "RIGHT":
-                color = new ColorRGBA(1f, 1f, 0f, 0.5f); // Amarillo
-                break;
-            case "LUNA":
-                color = new ColorRGBA(1f, 1f, 1f, 0.5f); // Blanco
-                break;
-            default:
-                color = new ColorRGBA(0.5f, 0.5f, 0.5f, 0.5f);
-        }
-        
-        mat.setColor("Color", color);
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        Geometry target = new Geometry("Target-" + dirName + "-Fallback", new Quad(tamano, tamano));
-        target.setMaterial(mat);
-        target.setLocalTranslation(pos.x - tamano/2, pos.y - tamano/2, pos.z);
-        
-        if (rotacion != 0) {
-            target.rotate(0, 0, rotacion * com.jme3.math.FastMath.DEG_TO_RAD);
-        }
-        
-        nodoTargets.attachChild(target);
-        System.out.println("  ✓ Target " + dirName + " creado como FALLBACK (cuadrado de color)");
+        System.out.println("\n  📊 Resumen: " + elementosVisibles + "/" + 
+            elementosTotales + " elementos visibles");
     }
 
     // ==================== BARRA DE VIDA ====================
@@ -393,7 +485,7 @@ public class GameplayUI {
         txtCombo.setSize(36f);
         txtCombo.setColor(ColorRGBA.Cyan);
         txtCombo.setText("");
-        txtCombo.setLocalTranslation(ancho / 2 - 80f, 130f,0);
+        txtCombo.setLocalTranslation(ancho / 2 - 80f, 130f, 0);
         guiNode.attachChild(txtCombo);
         
         System.out.println("  ✓ Texto combo añadido");
@@ -530,7 +622,6 @@ public class GameplayUI {
         if (txtScore != null) txtScore.removeFromParent();
         if (txtCombo != null) txtCombo.removeFromParent();
         if (txtCancion != null) txtCancion.removeFromParent();
-        if (nodoTargets != null) nodoTargets.removeFromParent();
         if (btnPausa != null) btnPausa.removeFromParent();
         if (txtPausa != null) txtPausa.removeFromParent();
         if (uiRootNode != null) uiRootNode.removeFromParent();
@@ -555,7 +646,7 @@ public class GameplayUI {
             guiNode.attachChild(txtVidaPorcentaje);
         }
         
-        if (txtScore != null && txtScore.getParent() == null) {
+        if (txtScore != null && txtScore.getParent()== null) {
             guiNode.attachChild(txtScore);
         }
         
@@ -565,10 +656,6 @@ public class GameplayUI {
         
         if (txtCancion != null && txtCancion.getParent() == null) {
             guiNode.attachChild(txtCancion);
-        }
-        
-        if (nodoTargets != null && nodoTargets.getParent() == null) {
-            guiNode.attachChild(nodoTargets);
         }
         
         if (btnPausa != null && btnPausa.getParent() == null) {
@@ -593,6 +680,11 @@ public class GameplayUI {
             }
         }
         mensajesFeedback.clear();
+        
+        if (objetoCentral != null) {
+            objetoCentral.removeFromParent();
+            objetoCentral = null;
+        }
         
         if (uiRootNode != null) {
             uiRootNode.detachAllChildren();
