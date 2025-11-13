@@ -22,7 +22,8 @@ import java.util.ArrayList;
 
 /**
  * Clase principal del juego de ritmo
- * ✅ RUTA DE CANCIONES CORREGIDA
+ * ✅ Inicia con el menú principal
+ * ✅ Ruta de canciones: assets/canciones/
  */
 public class MiJuegoDeRitmo extends SimpleApplication {
     
@@ -34,15 +35,15 @@ public class MiJuegoDeRitmo extends SimpleApplication {
     public static void main(String[] args) {
         MiJuegoDeRitmo app = new MiJuegoDeRitmo();
         
-        // ⭐ CONFIGURAR TAMAÑO DE VENTANA
-        app.setShowSettings(false); // Desactivar ventana de configuración inicial
+        // Configurar ventana
+        app.setShowSettings(false);
         
         AppSettings settings = new AppSettings(true);
         settings.setTitle("Juego de Ritmo");
-        settings.setResolution(1280, 720); // HD 720p
-        settings.setVSync(true); // Activar VSync
-        settings.setFrameRate(60); // 60 FPS
-        settings.setFullscreen(false); // Ventana (false) o pantalla completa (true)
+        settings.setResolution(1280, 720);
+        settings.setVSync(true);
+        settings.setFrameRate(60);
+        settings.setFullscreen(false);
         
         app.setSettings(settings);
         app.start();
@@ -53,26 +54,35 @@ public class MiJuegoDeRitmo extends SimpleApplication {
         this.setDisplayFps(true);
         this.setDisplayStatView(false);
         
-        // ⭐ PARA TESTING: Comentar el menú y arrancar directo en gameplay
-        /*
-        menuAppStates = new MenuAppState();
-        stateManager.attach(menuAppStates);
-        */
+        System.out.println("\n" + "=".repeat(60));
+        System.out.println("🎮 JUEGO DE RITMO - INICIANDO");
+        System.out.println("=".repeat(60));
         
-        // ⭐ ARRANCAR DIRECTO EN GAMEPLAY (MODO TEST)
-        iniciarGameplayTest();
+        // ⭐ INICIAR CON EL MENÚ PRINCIPAL
+        iniciarConMenu();
+        
+        System.out.println("✓ Aplicación inicializada correctamente");
+        System.out.println("=".repeat(60) + "\n");
     }
 
     /**
-     * ⭐ MÉTODO TEMPORAL PARA TESTING - Inicia gameplay sin menú
+     * ⭐ Inicia el juego mostrando el menú principal
+     */
+    private void iniciarConMenu() {
+        System.out.println("🎬 Iniciando menú principal...");
+        menuAppStates = new MenuAppState();
+        stateManager.attach(menuAppStates);
+        System.out.println("✓ MenuAppState iniciado");
+    }
+
+    /**
+     * ⭐ MÉTODO OPCIONAL PARA TESTING - Inicia gameplay sin menú
+     * Descomenta la llamada en simpleInitApp() para usar
      */
     private void iniciarGameplayTest() {
         System.out.println("🧪 MODO TEST: Iniciando gameplay directo");
         
-        // Crear análisis falso para testing
         Map<String, AnalizadorCanciones.ResultadoAnalisis> resultadosTest = new LinkedHashMap<>();
-        
-        // ⭐ RUTA CORREGIDA: assets/canciones (en minúscula)
         PlaylistManager pm = new PlaylistManager("assets/canciones");
         
         try {
@@ -86,7 +96,7 @@ public class MiJuegoDeRitmo extends SimpleApplication {
                 return;
             }
             
-            // Analizar solo la primera canción para test rápido
+            // Analizar solo la primera canción
             String primeraCancion = canciones.get(0);
             AnalizadorCanciones analizador = new AnalizadorCanciones(assetManager);
             
@@ -107,17 +117,58 @@ public class MiJuegoDeRitmo extends SimpleApplication {
         }
     }
 
-    public void startGameplay(List<String> cancionesSeleccionadas, Map<String, ResultadoAnalisis> resultados) {
-        System.out.println("Iniciando gameplay con canciones: " + cancionesSeleccionadas);
+    /**
+     * Inicia el gameplay con las canciones seleccionadas
+     * Llamado desde MenuAppState cuando el usuario presiona "Empezar"
+     */
+    public void startGameplay(List<String> cancionesSeleccionadas, 
+                             Map<String, ResultadoAnalisis> resultados) {
+        System.out.println("\n=== INICIANDO GAMEPLAY ===");
+        System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
         
-        // Limpia el menú
+        // Limpiar el menú
         if (menuAppStates != null) {
+            System.out.println("  - Desvinculando menú...");
             stateManager.detach(menuAppStates);
         }
         
-        // ✨ NUEVO: Crear GameplayAppState con los resultados del análisis
+        // Crear GameplayAppState con los resultados del análisis
         gameplayAppState = new GameplayAppState(cancionesSeleccionadas, resultados);
         stateManager.attach(gameplayAppState);
+        
+        System.out.println("✓ Gameplay iniciado correctamente");
+    }
+
+    /**
+     * Vuelve al menú principal
+     * Llamado desde GameplayAppState al terminar o salir
+     */
+    public void volverAlMenu() {
+        System.out.println("\n=== VOLVIENDO AL MENÚ PRINCIPAL ===");
+        
+        // 1. Limpiar GameplayAppState
+        if (gameplayAppState != null) {
+            System.out.println("  - Desvinculando GameplayAppState...");
+            stateManager.detach(gameplayAppState);
+            gameplayAppState = null;
+        }
+        
+        // 2. Limpiar completamente el GuiNode
+        System.out.println("  - Limpiando GUI...");
+        guiNode.detachAllChildren();
+        
+        // 3. Limpiar RootNode
+        rootNode.detachAllChildren();
+        
+        // 4. Recrear MenuAppState desde cero
+        System.out.println("  - Creando nuevo menú...");
+        menuAppStates = new MenuAppState();
+        
+        // 5. Vincular menú
+        stateManager.attach(menuAppStates);
+        
+        System.out.println("✓ Menú principal restaurado");
+        System.out.println("===================================\n");
     }
 
     /**
@@ -138,26 +189,10 @@ public class MiJuegoDeRitmo extends SimpleApplication {
     }
 
     /**
-     * ✨ NUEVO: Expone el FlyByCamera para que GameplayAppState pueda deshabilitarlo
+     * Expone el FlyByCamera para que GameplayAppState pueda deshabilitarlo
      */
     public com.jme3.input.FlyByCamera getFlyByCamera() {
         return flyCam;
-    }
-
-    /**
-     * Vuelve al menú principal
-     */
-    public void volverAlMenu() {
-        if (gameplayAppState != null) {
-            stateManager.detach(gameplayAppState);
-            gameplayAppState = null;
-        }
-        
-        if (menuAppStates == null) {
-            menuAppStates = new MenuAppState();
-        }
-        
-        stateManager.attach(menuAppStates);
     }
 
     @Override
@@ -176,5 +211,14 @@ public class MiJuegoDeRitmo extends SimpleApplication {
     public Node getGuiNode() {
         return guiNode;
     }
+    
+    /**
+     * Cleanup al cerrar la aplicación
+     */
+    @Override
+    public void destroy() {
+        System.out.println("\n🧹 Cerrando aplicación...");
+        super.destroy();
+        System.out.println("👋 ¡Hasta pronto!");
+    }
 }
-

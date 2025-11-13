@@ -27,6 +27,7 @@ import java.util.List;
  * ✅ Objeto central que recibe las flechas
  * ✅ Sistema de brillo para mecánica ESPACIO
  * ✅ Efectos visuales mejorados
+ * ✅ Métodos nuevos para sistema de puntuación mejorado
  * 
  * @author CamiLaNekoUwU_Gamer
  */
@@ -40,7 +41,7 @@ public class GameplayUI {
     
     private Node uiRootNode;
     
-    // ==================== OBJETO CENTRAL (NUEVO) ====================
+    // ==================== OBJETO CENTRAL ====================
     private Geometry objetoCentral;
     private Material materialObjetoCentral;
     private float tiempoBrilloEspacio = 0f;
@@ -62,8 +63,6 @@ public class GameplayUI {
     private int vidaMaxima = 100;
     private int vidaActual = 100;
     
-    // Targets ya no se usan (las flechas van al objeto central)
-    // Pero los dejamos por compatibilidad si quieres indicadores visuales
     private Node nodoIndicadoresDireccionales;
     
     // Feedback temporal
@@ -99,13 +98,8 @@ public class GameplayUI {
     private void inicializarUI() {
         uiRootNode = new Node("GameplayUIRoot");
         
-        // ⭐ ORDEN IMPORTANTE: Crear objeto central PRIMERO
         crearObjetoCentral();
-        
-        // Indicadores direccionales opcionales (flechas pequeñas en los bordes)
         crearIndicadoresDireccionales();
-        
-        // UI tradicional
         crearBarraVida();
         crearTextoScore();
         crearTextoCombo();
@@ -116,20 +110,15 @@ public class GameplayUI {
         System.out.println("  ✓ GameplayUIRoot añadido al GuiNode");
     }
 
-    // ==================== ⭐ OBJETO CENTRAL (NUEVO) ====================
+    // ==================== OBJETO CENTRAL ====================
     
-    /**
-     * Crea el objeto central que brilla con ESPACIO
-     * Este es el objetivo hacia el que convergen todas las flechas
-     */
     private void crearObjetoCentral() {
         System.out.println("\n  ⭐ Creando objeto central...");
         
-        float tamano = 150f; // Tamaño del objeto central
+        float tamano = 150f;
         float centroX = ancho / 2;
         float centroY = alto / 2;
         
-        // Intentar cargar textura del protagonista/astronauta
         String rutaTextura = "assets/Texture/Protagonista/astronautaPoseDefault.png";
         
         try {
@@ -142,25 +131,16 @@ public class GameplayUI {
             materialObjetoCentral.setTexture("ColorMap", texture);
             materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
             
-            // Color base con ligero brillo
             colorBaseObjetoCentral = new ColorRGBA(1.1f, 1.1f, 1.1f, 1.0f);
             materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
             
             objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
             objetoCentral.setMaterial(materialObjetoCentral);
-            
-            // Posicionar en el centro exacto
-            objetoCentral.setLocalTranslation(
-                centroX - tamano/2, 
-                centroY - tamano/2, 
-                5 // Z más alto que las flechas para estar siempre visible
-            );
+            objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
             
             uiRootNode.attachChild(objetoCentral);
             
             System.out.println("  ✓ Objeto central creado exitosamente");
-            System.out.println("    - Tamaño: " + tamano + "x" + tamano);
-            System.out.println("    - Posición: Centro (" + centroX + ", " + centroY + ")");
             
         } catch (Exception e) {
             System.err.println("  ❌ Error cargando textura: " + e.getMessage());
@@ -169,117 +149,77 @@ public class GameplayUI {
         }
     }
 
-    /**
-     * Crea un objeto central de respaldo (círculo brillante)
-     */
     private void crearObjetoCentralFallback(float centroX, float centroY, float tamano) {
         materialObjetoCentral = new Material(app.getAssetManager(),
             "Common/MatDefs/Misc/Unshaded.j3md");
         
-        // Color base: blanco brillante
         colorBaseObjetoCentral = new ColorRGBA(1.2f, 1.2f, 1.4f, 0.9f);
         materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
         materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
         
         objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
         objetoCentral.setMaterial(materialObjetoCentral);
-        objetoCentral.setLocalTranslation(
-            centroX - tamano/2, 
-            centroY - tamano/2, 
-            5
-        );
+        objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
         
         uiRootNode.attachChild(objetoCentral);
         
         System.out.println("  ✓ Objeto central de respaldo creado (cuadrado brillante)");
     }
 
-    // ==================== 🌟 SISTEMA DE BRILLO ====================
+    // ==================== SISTEMA DE BRILLO ====================
     
-    /**
-     * Activa el efecto de brillo cuando se presiona ESPACIO
-     * Llamar desde GameplayAppState cuando se detecte input de ESPACIO
-     */
     public void activarBrilloEspacio() {
         brillandoEspacio = true;
         tiempoBrilloEspacio = 0f;
         
         if (materialObjetoCentral != null) {
-            // Brillo intenso blanco-azul-cyan
-            materialObjetoCentral.setColor("Color", 
-                new ColorRGBA(3.0f, 3.0f, 4.0f, 1.0f));
+            materialObjetoCentral.setColor("Color", new ColorRGBA(3.0f, 3.0f, 4.0f, 1.0f));
         }
         
         System.out.println("✨ Objeto central BRILLANDO - Mecánica ESPACIO activada");
     }
 
-    /**
-     * Actualiza el efecto de brillo del objeto central
-     * Debe llamarse en cada frame desde GameplayAppState.update()
-     */
     public void actualizarBrilloObjetoCentral(float tpf) {
         if (objetoCentral == null || materialObjetoCentral == null) return;
         
-        // ========== EFECTO DE BRILLO DE ESPACIO ==========
         if (brillandoEspacio) {
             tiempoBrilloEspacio += tpf;
-            
-            float duracionBrillo = 0.4f; // Duración del flash
+            float duracionBrillo = 0.4f;
             
             if (tiempoBrilloEspacio < duracionBrillo) {
-                // Fade out suave del brillo
                 float progreso = tiempoBrilloEspacio / duracionBrillo;
-                float intensidad = 1.0f + (3.0f * (1.0f - progreso)); // De 4.0 a 1.0
+                float intensidad = 1.0f + (3.0f * (1.0f - progreso));
                 
-                // Color que va de cyan brillante a blanco normal
                 float r = intensidad;
                 float g = intensidad;
-                float b = intensidad + (3.0f * (1.0f - progreso)); // Más azul al inicio
+                float b = intensidad + (3.0f * (1.0f - progreso));
                 
-                materialObjetoCentral.setColor("Color", 
-                    new ColorRGBA(r, g, b, 1.0f));
+                materialObjetoCentral.setColor("Color", new ColorRGBA(r, g, b, 1.0f));
             } else {
-                // Terminar el brillo, volver a pulso normal
                 brillandoEspacio = false;
                 materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
             }
-        } 
-        // ========== EFECTO DE PULSO CONSTANTE ==========
-        else {
+        } else {
             tiempoPulso += tpf * VELOCIDAD_PULSO;
-            
-            // Oscilación suave usando seno
             float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
-            
             ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
             materialObjetoCentral.setColor("Color", colorPulso);
         }
     }
 
-    /**
-     * Activa un brillo suave al golpear una flecha normal
-     * Feedback visual para hits exitosos
-     */
     public void activarBrilloHit(ColorRGBA colorFlecha) {
         if (materialObjetoCentral == null) return;
         
-        // Mezclar el color de la flecha con el objeto central brevemente
         ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha).mult(0.7f);
         colorMezclado.a = 1.0f;
         
         materialObjetoCentral.setColor("Color", colorMezclado);
         
-        // El pulso normal lo restaurará gradualmente
         System.out.println("💫 Hit registrado - Brillo de color");
     }
 
-    // ==================== 📍 INDICADORES DIRECCIONALES (OPCIONAL) ====================
+    // ==================== INDICADORES DIRECCIONALES ====================
     
-    /**
-     * Crea pequeños indicadores en los bordes de la pantalla
-     * Para mostrar de qué lado vienen las flechas
-     * OPCIONAL: Puedes comentar esta sección si no los quieres
-     */
     private void crearIndicadoresDireccionales() {
         System.out.println("\n  📍 Creando indicadores direccionales...");
         
@@ -290,19 +230,15 @@ public class GameplayUI {
         float centroX = ancho / 2f;
         float centroY = alto / 2f;
         
-        // Indicador IZQUIERDA
         crearIndicadorDireccional("←", centroX - ancho/2 + margen, centroY, 
             tamanoIndicador, new ColorRGBA(1f, 0.3f, 0.3f, 0.5f));
         
-        // Indicador DERECHA
         crearIndicadorDireccional("→", centroX + ancho/2 - margen - tamanoIndicador, centroY, 
             tamanoIndicador, new ColorRGBA(1f, 0.3f, 0.3f, 0.5f));
         
-        // Indicador ARRIBA
         crearIndicadorDireccional("↑", centroX, centroY + alto/2 - margen - tamanoIndicador, 
             tamanoIndicador, new ColorRGBA(0.3f, 0.3f, 1f, 0.5f));
         
-        // Indicador ABAJO
         crearIndicadorDireccional("↓", centroX, centroY - alto/2 + margen, 
             tamanoIndicador, new ColorRGBA(0.3f, 0.3f, 1f, 0.5f));
         
@@ -312,7 +248,6 @@ public class GameplayUI {
 
     private void crearIndicadorDireccional(String simbolo, float x, float y, 
                                           float tamano, ColorRGBA color) {
-        // Fondo semi-transparente
         Quad quad = new Quad(tamano, tamano);
         Geometry indicador = new Geometry("Indicador-" + simbolo, quad);
         
@@ -326,7 +261,6 @@ public class GameplayUI {
         
         nodoIndicadoresDireccionales.attachChild(indicador);
         
-        // Texto del símbolo
         BitmapText txtSimbolo = new BitmapText(font);
         txtSimbolo.setSize(30f);
         txtSimbolo.setColor(ColorRGBA.White);
@@ -336,7 +270,7 @@ public class GameplayUI {
         nodoIndicadoresDireccionales.attachChild(txtSimbolo);
     }
 
-    // ==================== 📊 VERIFICACIÓN ====================
+    // ==================== VERIFICACIÓN ====================
     
     private void verificarVisibilidad() {
         System.out.println("\n🔍 Verificando visibilidad de elementos:");
@@ -344,7 +278,6 @@ public class GameplayUI {
         int elementosVisibles = 0;
         int elementosTotales = 0;
         
-        // Verificar objeto central
         if (objetoCentral != null && objetoCentral.getParent() != null) {
             elementosVisibles++;
             System.out.println("  ✓ Objeto central: VISIBLE");
@@ -398,7 +331,6 @@ public class GameplayUI {
         
         System.out.println("  💚 Creando barra de vida en: (" + posX + ", " + posY + ")");
         
-        // Fondo
         Quad fondoQuad = new Quad(anchoBarraMax, altoBarraMax);
         barraVidaFondo = new Geometry("BarraVidaFondo", fondoQuad);
         
@@ -410,7 +342,6 @@ public class GameplayUI {
         barraVidaFondo.setLocalTranslation(posX, posY, 0);
         guiNode.attachChild(barraVidaFondo);
         
-        // Barra actual
         Quad vidaQuad = new Quad(anchoBarraMax, altoBarraMax);
         barraVidaActual = new Geometry("BarraVidaActual", vidaQuad);
         
@@ -422,7 +353,6 @@ public class GameplayUI {
         barraVidaActual.setLocalTranslation(posX, posY, 0.1f);
         guiNode.attachChild(barraVidaActual);
         
-        // Texto porcentaje
         txtVidaPorcentaje = new BitmapText(font);
         txtVidaPorcentaje.setSize(22f);
         txtVidaPorcentaje.setColor(ColorRGBA.White);
@@ -440,11 +370,9 @@ public class GameplayUI {
         float anchoBarraMax = 500f;
         float nuevoAncho = anchoBarraMax * porcentaje;
         
-        // Actualizar ancho
         Quad vidaQuad = new Quad(nuevoAncho, 35f);
         barraVidaActual.setMesh(vidaQuad);
         
-        // Actualizar color
         Material mat = barraVidaActual.getMaterial();
         if (porcentaje > 0.6f) {
             mat.setColor("Color", COLOR_VIDA_ALTA);
@@ -454,7 +382,6 @@ public class GameplayUI {
             mat.setColor("Color", COLOR_VIDA_BAJA);
         }
         
-        // Actualizar texto
         txtVidaPorcentaje.setText(String.format("%d%%", (int)(porcentaje * 100)));
         txtVidaPorcentaje.setColor(porcentaje <= 0.3f ? ColorRGBA.Red : ColorRGBA.White);
     }
@@ -550,7 +477,6 @@ public class GameplayUI {
         
         System.out.println("  ⏸ Creando botón de pausa en: (" + posX + ", " + posY + ")");
         
-        // Fondo del botón
         Quad quad = new Quad(tamano, tamano);
         btnPausa = new Geometry("BotonPausa", quad);
         
@@ -562,7 +488,6 @@ public class GameplayUI {
         btnPausa.setLocalTranslation(posX, posY, 10);
         guiNode.attachChild(btnPausa);
         
-        // Símbolo de pausa
         txtPausa = new BitmapText(font);
         txtPausa.setSize(40f);
         txtPausa.setColor(ColorRGBA.White);
@@ -609,6 +534,75 @@ public class GameplayUI {
         }
         
         mensajesFeedback.removeAll(mensajesAEliminar);
+    }
+
+    // ==================== ⭐ MÉTODOS NUEVOS PARA SISTEMA MEJORADO ====================
+    
+    /**
+     * ⭐ NUEVO: Muestra los puntos bonus obtenidos
+     * Se anima hacia arriba y desaparece gradualmente
+     * 
+     * @param puntos Cantidad de puntos a mostrar
+     */
+    public void mostrarBonusPuntos(int puntos) {
+        BitmapText txtBonus = new BitmapText(font);
+        txtBonus.setSize(32f);
+        txtBonus.setColor(new ColorRGBA(1f, 0.8f, 0f, 1f)); // Dorado brillante
+        txtBonus.setText("+" + puntos);
+        
+        float anchoTexto = txtBonus.getLineWidth();
+        txtBonus.setLocalTranslation(
+            ancho / 2 - anchoTexto / 2, 
+            alto / 2 + 100f, 
+            2f
+        );
+        
+        guiNode.attachChild(txtBonus);
+        mensajesFeedback.add(new MensajeFeedback(txtBonus, 0f));
+        
+        System.out.println("💰 Bonus de puntos mostrado: +" + puntos);
+    }
+
+    /**
+     * ⭐ NUEVO: Muestra advertencia cuando la vida está baja (< 30%)
+     * Efecto de parpadeo en la barra de vida + mensaje de alerta
+     */
+    public void mostrarAdvertenciaVidaBaja() {
+        // Efecto 1: Parpadeo en la barra de vida
+        if (barraVidaActual != null) {
+            Material mat = barraVidaActual.getMaterial();
+            ColorRGBA colorActual = mat.getParamValue("Color");
+            
+            if (colorActual != null) {
+                // Alternar entre rojo brillante y rojo oscuro
+                if (colorActual.r > 0.8f) {
+                    mat.setColor("Color", new ColorRGBA(0.6f, 0.1f, 0.1f, 1f));
+                } else {
+                    mat.setColor("Color", new ColorRGBA(1f, 0.2f, 0.2f, 1f));
+                }
+            }
+        }
+        
+        // Efecto 2: Mensaje de advertencia
+        mostrarFeedback("¡VIDA BAJA!", ColorRGBA.Red);
+        
+        // Efecto 3: Flash rojo en objeto central
+        if (materialObjetoCentral != null) {
+            materialObjetoCentral.setColor("Color", new ColorRGBA(2f, 0.5f, 0.5f, 1f));
+            
+            new Thread(() -> {
+                try {
+                    Thread.sleep(200);
+                    if (materialObjetoCentral != null && colorBaseObjetoCentral != null) {
+                        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+        
+        System.out.println("⚠️ ADVERTENCIA: Vida baja activada");
     }
 
     // ==================== OCULTAR/MOSTRAR ====================
