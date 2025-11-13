@@ -15,17 +15,11 @@ import com.jme3.renderer.ViewPort;
 import com.jme3.scene.control.AbstractControl;
 
 /**
- * Control que maneja el movimiento y comportamiento de las flechas
- * Implementa los tres tipos: NORMAL, RAPIDA y DORADA
+ * Control mejorado de flechas con movimiento recto
+ * ✅ Movimiento en línea recta desde bordes hacia el centro
+ * ✅ Flechas doradas invierten dirección correctamente
+ * ✅ Mayor distancia de spawn para mejor tiempo de reacción
  * 
- * @author CamiLaNekoUwU_Gamer
- */
-
-/**
- * Control que maneja el movimiento y comportamiento de las flechas
- * Implementa movimiento vertical desde abajo hacia arriba hasta los targets
- * Soporta 4 tipos: NORMAL, RAPIDA, DORADA (se invierte), LUNA (especial)
- *
  * @author CamiLaNekoUwU_Gamer
  */
 public class FlechaControl extends AbstractControl {
@@ -33,28 +27,26 @@ public class FlechaControl extends AbstractControl {
     private final TipoFlecha tipo;
     private final Direccion direccion;
     private final Vector3f posicionInicial;
-    private final Vector3f target; // Posición del target (flecha vacía)
+    private final Vector3f target;
     private final float velocidad;
     private final float beatTime;
     private final Material material;
     
-    // ==================== ESTADO DE INVERSIÓN (FLECHAS DORADAS) ====================
+    // ==================== ESTADO DE INVERSIÓN ====================
     private boolean invertido = false;
-    private float distanciaInversion; // Punto medio donde se invierte
+    private float distanciaInversion;
     private float distanciaRecorrida = 0f;
     
+    // ⭐ NUEVO: Vector de movimiento calculado una sola vez
+    private Vector3f direccionMovimiento;
+    private Vector3f direccionMovimientoInvertida;
+    
     // ==================== EFECTOS VISUALES ====================
-    // Brillo al hacer hit correcto
     private boolean brilloActivo = false;
     private float tiempoBrillo = 0f;
     private static final float DURACION_BRILLO = 0.3f;
-    
-    // Brillo pulsante para flechas doradas
     private float tiempoBrilloPulsante = 0f;
-    
-    // Brillo suave para flechas de luna
     private float tiempoBrilloLuna = 0f;
-    
     private ColorRGBA colorBase;
     
     // ==================== ESTADO DEL JUEGO ====================
@@ -72,80 +64,61 @@ public class FlechaControl extends AbstractControl {
         this.beatTime = beatTime;
         this.material = material;
         
-        // Para flechas doradas, calcular el punto de inversión (mitad del camino)
+        // ⭐ NUEVO: Calcular dirección de movimiento una sola vez
+        this.direccionMovimiento = target.subtract(posicionInicial).normalize();
+        
+        // Para flechas doradas: calcular dirección invertida
         if (tipo == TipoFlecha.DORADA) {
             this.distanciaInversion = posicionInicial.distance(target) / 2f;
+            // La dirección invertida es exactamente la opuesta
+            this.direccionMovimientoInvertida = direccionMovimiento.negate();
         }
         
-        // Guardar color base para efectos
         this.colorBase = material.getParamValue("Color");
         if (this.colorBase == null) {
             this.colorBase = ColorRGBA.White.clone();
         }
         
-        // Aplicar efectos iniciales según el tipo
         aplicarEfectoInicial();
     }
     
     // ==================== MÉTODOS PRINCIPALES ====================
     
-    /**
-     * Aplica efectos visuales iniciales según el tipo de flecha
-     */
     private void aplicarEfectoInicial() {
         switch (tipo) {
             case DORADA:
-                // Brillo constante dorado desde el inicio
                 material.setColor("Color", colorBase.mult(1.3f));
                 break;
-                
             case LUNA:
-                // Brillo suave blanco para la luna
                 material.setColor("Color", new ColorRGBA(1.2f, 1.2f, 1.2f, 1.0f));
                 break;
-                
             case RAPIDA:
-                // Brillo sutil para las rápidas
                 material.setColor("Color", colorBase.mult(1.1f));
                 break;
-                
             default:
-                // Normal sin cambios
                 material.setColor("Color", colorBase);
                 break;
         }
     }
     
-    /**
-     * Update principal - Se ejecuta cada frame
-     */
     @Override
     protected void controlUpdate(float tpf) {
         if (spatial == null || fueErrada) {
             return;
         }
         
-        // ========== ACTUALIZAR EFECTOS VISUALES ==========
         actualizarEfectosVisuales(tpf);
         
-        // ========== MANEJAR FLECHA GOLPEADA ==========
         if (fueGolpeada) {
             manejarFlechaGolpeada(tpf);
-            return; // No mover más si fue golpeada
+            return;
         }
         
-        // ========== MOVIMIENTO DE LA FLECHA ==========
         moverFlecha(tpf);
-        
-        // ========== VERIFICAR SI PASÓ EL TARGET (MISS) ==========
         verificarMiss();
     }
     
-    /**
-     * Actualiza los efectos visuales según el tipo de flecha
-     */
     private void actualizarEfectosVisuales(float tpf) {
-        // Brillo de hit (para todas las flechas)
         if (brilloActivo) {
             tiempoBrillo += tpf;
             if (tiempoBrillo >= DURACION_BRILLO) {
@@ -153,108 +126,88 @@ public class FlechaControl extends AbstractControl {
                 tiempoBrillo = 0f;
                 restaurarColorBase();
             }
-            return; // No aplicar otros efectos durante el brillo de hit
+            return;
         }
         
-        // Efectos específicos por tipo
         switch (tipo) {
             case DORADA:
                 actualizarBrilloPulsanteDorada(tpf);
                 break;
-                
             case LUNA:
                 actualizarBrilloLuna(tpf);
-                break;
-                
-            default:
-                // NORMAL y RAPIDA sin efectos adicionales
                 break;
         }
     }
     
-    /**
-     * Efecto de brillo pulsante para flechas doradas
-     */
     private void actualizarBrilloPulsanteDorada(float tpf) {
-        tiempoBrilloPulsante += tpf * 3f; // Velocidad del pulso
-        
-        // Oscilación entre 1.1 y 1.5 de intensidad
+        tiempoBrilloPulsante += tpf * 3f;
         float intensidad = 1.2f + 0.3f * FastMath.sin(tiempoBrilloPulsante);
         material.setColor("Color", colorBase.mult(intensidad));
     }
     
-    /**
-     * Efecto de brillo suave para flechas de luna
-     */
     private void actualizarBrilloLuna(float tpf) {
         tiempoBrilloLuna += tpf * 2f;
-        
-        // Oscilación suave entre 1.0 y 1.3
         float intensidad = 1.15f + 0.15f * FastMath.sin(tiempoBrilloLuna);
-        ColorRGBA colorLuna = new ColorRGBA(intensidad, intensidad, intensidad, 1.0f);
-        material.setColor("Color", colorLuna);
+        material.setColor("Color", new ColorRGBA(intensidad, intensidad, intensidad, 1.0f));
     }
     
-    /**
-     * Maneja el comportamiento cuando la flecha fue golpeada
-     */
     private void manejarFlechaGolpeada(float tpf) {
         tiempoBrillo += tpf;
         
-        // Efecto de encogimiento/desaparición
         if (tiempoBrillo < DURACION_BRILLO) {
             float escala = 1f - (tiempoBrillo / DURACION_BRILLO);
-            escala = Math.max(escala, 0.1f); // Mínimo 10% de tamaño
+            escala = Math.max(escala, 0.1f);
             spatial.setLocalScale(escala);
         } else {
-            // Eliminar del juego
             spatial.removeFromParent();
         }
     }
     
     /**
-     * Mueve la flecha hacia su target
+     * ⭐ MEJORADO: Movimiento en línea recta constante
+     * - Usa el vector de dirección pre-calculado
+     * - Movimiento uniforme y predecible
+     * - Flechas doradas invierten dirección correctamente
      */
     private void moverFlecha(float tpf) {
         Vector3f posicionActual = spatial.getLocalTranslation();
         
-        // ========== CALCULAR DIRECCIÓN DE MOVIMIENTO ==========
-        Vector3f direccionMovimiento;
-        
+        // ⭐ NUEVO: Usar dirección pre-calculada para movimiento recto
+        Vector3f direccion;
         if (tipo == TipoFlecha.DORADA && invertido) {
-            // Flechas doradas invertidas: se alejan del target
-            direccionMovimiento = posicionActual.subtract(target).normalize();
+            // Después de invertir, se mueve en dirección opuesta
+            direccion = direccionMovimientoInvertida;
         } else {
-            // Todas las demás: se acercan al target
-            direccionMovimiento = target.subtract(posicionActual).normalize();
+            // Movimiento normal hacia el target
+            direccion = direccionMovimiento;
         }
         
-        // ========== APLICAR MOVIMIENTO ==========
         float distanciaMovimiento = velocidad * tpf;
         distanciaRecorrida += distanciaMovimiento;
         
-        Vector3f nuevaPosicion = posicionActual.add(direccionMovimiento.mult(distanciaMovimiento));
+        // ⭐ Movimiento perfectamente recto
+        Vector3f nuevaPosicion = posicionActual.add(direccion.mult(distanciaMovimiento));
         spatial.setLocalTranslation(nuevaPosicion);
         
-        // ========== LÓGICA DE INVERSIÓN PARA FLECHAS DORADAS ==========
+        // Verificar inversión para flechas doradas
         if (tipo == TipoFlecha.DORADA && !invertido && distanciaRecorrida >= distanciaInversion) {
             ejecutarInversion();
         }
     }
     
     /**
-     * Ejecuta la inversión de una flecha dorada
+     * ⭐ MEJORADO: Inversión visual más clara
      */
     private void ejecutarInversion() {
         invertido = true;
         
-        // Efecto visual: rotar 180 grados
+        // Rotar 180 grados para que apunte en dirección opuesta
         spatial.rotate(0, 0, FastMath.PI);
         
-        // Efecto visual: flash brillante
+        // Flash brillante para indicar inversión
         material.setColor("Color", ColorRGBA.White.mult(2f));
         
-        // Resetear después de 0.1 segundos
+        // Restaurar color después de un breve momento
         new Thread(() -> {
             try {
                 Thread.sleep(100);
@@ -264,37 +217,43 @@ public class FlechaControl extends AbstractControl {
             }
         }).start();
         
-        System.out.println("¡Flecha dorada invertida! " + direccion + " → " + direccion.getOpuesta());
+        System.out.println("⭐ Flecha dorada invertida: " + direccion + " → " + direccion.getOpuesta());
     }
     
     /**
-     * Verifica si la flecha pasó el target sin ser golpeada (MISS)
+     * ⭐ MEJORADO: Verificación de miss más robusta
      */
     private void verificarMiss() {
-        Vector3f posicionActual = spatial.getLocalTranslation();
+        if (fueGolpeada) return;
         
-        // Verificar si pasó el target verticalmente (según si está invertida o no)
-        boolean pasoElTarget;
+        Vector3f posicionActual = spatial.getLocalTranslation();
+        boolean salioDePantalla = false;
         
         if (tipo == TipoFlecha.DORADA && invertido) {
-            // Flecha invertida: miss si sale de la pantalla hacia abajo o los lados
-            pasoElTarget = posicionActual.y < -200f || 
-                          Math.abs(posicionActual.x - target.x) > 600f;
+            // Flecha dorada invertida: verificar si salió por el borde opuesto
+            float distanciaDesdeInversion = distanciaRecorrida - distanciaInversion;
+            float distanciaMaxima = distanciaInversion * 1.5f; // 50% más de la distancia de inversión
+            
+            if (distanciaDesdeInversion > distanciaMaxima) {
+                salioDePantalla = true;
+            }
         } else {
-            // Flecha normal: miss si pasa 50px arriba del target
-            pasoElTarget = posicionActual.y > target.y + 50f;
+            // Flecha normal: verificar si pasó el target
+            float distanciaAlTarget = posicionActual.distance(target);
+            
+            // Si la distancia recorrida es mayor a la distancia total + margen
+            float distanciaTotal = posicionInicial.distance(target);
+            if (distanciaRecorrida > distanciaTotal * 1.2f) {
+                salioDePantalla = true;
+            }
         }
         
-        if (pasoElTarget && !fueGolpeada) {
+        if (salioDePantalla) {
             fueErrada = true;
-            // Efecto visual de miss: oscurecer
             material.setColor("Color", ColorRGBA.DarkGray);
         }
     }
     
-    /**
-     * Restaura el color base según el tipo de flecha
-     */
     private void restaurarColorBase() {
         switch (tipo) {
             case DORADA:
@@ -314,100 +273,58 @@ public class FlechaControl extends AbstractControl {
     
     // ==================== MÉTODOS PÚBLICOS ====================
     
-    /**
-     * Activa el brillo cuando la flecha es golpeada correctamente
-     */
     public void brillar() {
         brilloActivo = true;
         tiempoBrillo = 0f;
         fueGolpeada = true;
-        
-        // Brillo intenso blanco
         material.setColor("Color", ColorRGBA.White.mult(2.5f));
-        
         System.out.println("✨ Flecha golpeada: " + tipo + " " + direccion);
     }
     
-    /**
-     * Marca la flecha como errada manualmente (para eliminarla sin efecto)
-     */
     public void marcarComoErrada() {
         fueErrada = true;
     }
     
-    /**
-     * Calcula el delay actual respecto al beat ideal
-     * @param tiempoActual Tiempo actual del juego
-     * @return Delay en segundos (valor absoluto)
-     */
+    public void marcarComoGolpeada() {
+        if (fueGolpeada) {
+            return;
+        }
+        
+        fueGolpeada = true;
+        brilloActivo = true;
+        tiempoBrillo = 0f;
+        
+        material.setColor("Color", ColorRGBA.White.mult(2.5f));
+        
+        System.out.println("✅ Flecha marcada como golpeada: " + tipo + " " + direccion);
+    }
+    
     public float calcularDelay(float tiempoActual) {
         return Math.abs(tiempoActual - beatTime);
     }
     
-    /**
-     * Verifica si la flecha está dentro del rango de golpe
-     * @param tiempoActual Tiempo actual del juego
-     * @param rangoPermitido Rango de tiempo permitido (ej: 0.3s)
-     * @return true si está dentro del rango
-     */
     public boolean estaEnRangoDeGolpe(float tiempoActual, float rangoPermitido) {
         return calcularDelay(tiempoActual) < rangoPermitido;
     }
     
-    /**
-     * Obtiene la distancia actual al target en píxeles
-     */
     public float getDistanciaAlTarget() {
         if (spatial == null) return Float.MAX_VALUE;
-        Vector3f posActual = spatial.getLocalTranslation();
-        return posActual.distance(target);
+        return spatial.getLocalTranslation().distance(target);
     }
     
     // ==================== GETTERS ====================
     
-    public float getBeatTime() {
-        return beatTime;
-    }
+    public float getBeatTime() { return beatTime; }
+    public TipoFlecha getTipo() { return tipo; }
+    public Direccion getDireccion() { return direccion; }
+    public boolean fueGolpeada() { return fueGolpeada; }
+    public boolean fueErrada() { return fueErrada; }
+    public boolean estaInvertida() { return invertido; }
+    public Vector3f getTarget() { return target.clone(); }
+    public Vector3f getPosicionInicial() { return posicionInicial.clone(); }
+    public float getVelocidad() { return velocidad; }
+    public float getDistanciaRecorrida() { return distanciaRecorrida; }
     
-    public TipoFlecha getTipo() {
-        return tipo;
-    }
-    
-    public Direccion getDireccion() {
-        return direccion;
-    }
-    
-    public boolean fueGolpeada() {
-        return fueGolpeada;
-    }
-    
-    public boolean fueErrada() {
-        return fueErrada;
-    }
-    
-    public boolean estaInvertida() {
-        return invertido;
-    }
-    
-    public Vector3f getTarget() {
-        return target.clone();
-    }
-    
-    public Vector3f getPosicionInicial() {
-        return posicionInicial.clone();
-    }
-    
-    public float getVelocidad() {
-        return velocidad;
-    }
-    
-    public float getDistanciaRecorrida() {
-        return distanciaRecorrida;
-    }
-    
-    /**
-     * Obtiene el porcentaje de camino recorrido (0.0 a 1.0)
-     */
     public float getPorcentajeRecorrido() {
         float distanciaTotal = posicionInicial.distance(target);
         if (distanciaTotal == 0) return 1.0f;
@@ -419,10 +336,9 @@ public class FlechaControl extends AbstractControl {
     @Override
     protected void controlRender(RenderManager rm, ViewPort vp) {
         // No se necesita renderizado especial
-        // Los efectos visuales se manejan en controlUpdate()
     }
     
-    // ==================== MÉTODOS DE DEBUG ====================
+    // ==================== DEBUG ====================
     
     @Override
     public String toString() {
@@ -432,9 +348,6 @@ public class FlechaControl extends AbstractControl {
         );
     }
     
-    /**
-     * Información detallada para debugging
-     */
     public String getInfoDetallada() {
         return String.format(
             "=== FLECHA DEBUG ===\n" +

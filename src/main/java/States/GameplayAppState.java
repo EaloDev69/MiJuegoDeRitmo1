@@ -39,11 +39,14 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 
 /**
- * GameplayAppState - Sistema de juego completo
- * ✅ Reproduce audio desde assets/canciones/
- * ✅ Sistema de playlist automático
- * ✅ Gestión de flechas y puntuación
- * ✅ Pausa funcional con ESC
+ * GameplayAppState - Sistema de juego completo con mejoras visuales
+ * ✅ Sistema de input mejorado con WASD + Flechas
+ * ✅ Zonas de impacto visibles en los bordes
+ * ✅ Objeto central reactivo con pulso rítmico
+ * ✅ Feedback visual sincronizado con la música
+ * ✅ Detección de hits precisa con ventanas configurables
+ * 
+ * @author CamiLaNekoUwU_Gamer
  */
 public class GameplayAppState extends BaseAppState implements ActionListener {
     
@@ -91,6 +94,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int malos = 0;
     private int misses = 0;
     
+    // ⭐ Sistema de input mejorado
+    private Map<Direccion, Boolean> teclasPresionadas;
+    private Map<Direccion, Float> ultimoTiempoInput;
+    private float cooldownInput = 0.1f;
+    
+    // ⭐ Ventanas de timing configurables
+    private static final float VENTANA_PERFECTA = 0.05f;  // 50ms
+    private static final float VENTANA_BUENA = 0.15f;     // 150ms
+    private static final float VENTANA_MALA = 0.30f;      // 300ms
+    private static final float VENTANA_MISS = 0.40f;      // 400ms
+    
+    // ⭐ Sistema de detección de hits mejorado
+    private Set<FlechaControl> flechasProcesadas;
+    
     // Otros
     private Vector3f centroPantalla;
     private Map<Direccion, String> mappingTeclas;
@@ -102,6 +119,15 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         this.analisisCompleto = analisis;
         this.flechasActivas = new ArrayList<>();
         this.flechasGenerator = new FlechasGenerator();
+        this.teclasPresionadas = new EnumMap<>(Direccion.class);
+        this.ultimoTiempoInput = new EnumMap<>(Direccion.class);
+        this.flechasProcesadas = new HashSet<>();
+        
+        // Inicializar estados de teclas
+        for (Direccion dir : Direccion.values()) {
+            teclasPresionadas.put(dir, false);
+            ultimoTiempoInput.put(dir, 0f);
+        }
         
         if (!canciones.isEmpty()) {
             String primerCancion = canciones.get(0);
@@ -142,8 +168,26 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         centroPantalla = new Vector3f(ancho / 2, alto / 2, 0);
         
         app.getCamera().setParallelProjection(true);
+        
+        // ⭐ NUEVO: Ampliar el área visible (frustum más grande)
+        // Multiplica por un factor para ver más allá de los bordes físicos de la ventana
+        float factorAmplificacion = 1.5f; // 50% más grande
         float aspect = (float) app.getCamera().getWidth() / app.getCamera().getHeight();
-        app.getCamera().setFrustum(-1000, 1000, -aspect * alto / 2, aspect * alto / 2, alto / 2, -alto / 2);
+        
+        float altoVisible = alto * factorAmplificacion;
+        float anchoVisible = ancho * factorAmplificacion;
+        
+        app.getCamera().setFrustum(
+            -1000, 1000, 
+            -aspect * altoVisible / 2,  // left
+            aspect * altoVisible / 2,   // right
+            altoVisible / 2,            // top
+            -altoVisible / 2            // bottom
+        );
+        
+        System.out.println("📐 Área de juego ampliada:");
+        System.out.println("  Ventana física: " + ancho + "x" + alto);
+        System.out.println("  Área visible: " + anchoVisible + "x" + altoVisible);
     }
     
     private void crearFondo() {
@@ -162,22 +206,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     }
     
     private void crearProtagonista() {
-        float ancho = app.getCamera().getWidth();
-        float alto = app.getCamera().getHeight();
+        // ⭐ ELIMINADO: Ya no creamos protagonista aquí
+        // El objeto central se crea en GameplayUI y es reactivo
+        // Este método ahora está vacío para mantener compatibilidad
         
-        Material astroMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        astroMat.setColor("Color", new ColorRGBA(1f, 1f, 1f, 0.9f));
-        astroMat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        float astroSize = 200f;
-        protagonistaGeometry = new Geometry("Protagonista", new Quad(astroSize, astroSize));
-        protagonistaGeometry.setMaterial(astroMat);
-        
-        float posX = (ancho / 2f) - (astroSize / 2f);
-        float posY = 50f;
-        protagonistaGeometry.setLocalTranslation(posX, posY, 0f);
-        
-        app.getGuiNode().attachChild(protagonistaGeometry);
+        System.out.println("✓ Objeto central gestionado por GameplayUI");
     }
     
     private void inicializarUI() {
@@ -241,7 +274,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    // ==================== UPDATE PRINCIPAL ====================
+    // ==================== UPDATE PRINCIPAL CON MEJORAS ====================
     
     @Override
     public void update(float tpf) {
@@ -264,10 +297,16 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // Actualizar tiempo
         tiempoTranscurrido += tpf;
         
-        // Actualizar UI
+        // ⭐ Procesar inputs en cada frame
+        procesarInputsContinuos();
+        
+        // ⭐ NUEVO: Actualizar UI y objeto central con pulso rítmico
         if (gameplayUI != null) {
             gameplayUI.actualizarFeedback(tpf);
             gameplayUI.actualizarCombo(combo);
+            
+            // ⭐ Actualizar brillo del objeto central sincronizado con la música
+            gameplayUI.actualizarBrilloObjetoCentral(tpf, tiempoTranscurrido);
         }
         
         // Generar y verificar flechas
@@ -364,6 +403,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         tiempoTranscurrido = 0f;
         flechasActivas.clear();
+        flechasProcesadas.clear();
         gameNode.detachAllChildren();
         
         if (gameplayUI != null) {
@@ -390,6 +430,12 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         malos = 0;
         misses = 0;
         combo = 0;
+        
+        // Resetear estados de input
+        for (Direccion dir : Direccion.values()) {
+            teclasPresionadas.put(dir, false);
+            ultimoTiempoInput.put(dir, 0f);
+        }
     }
     
     private void finalizarJuegoCompleto() {
@@ -411,7 +457,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }, "FinJuegoThread").start();
     }
     
-    // ==================== SISTEMA DE AUDIO ====================
+    // ==================== SISTEMA DE AUDIO CON CONFIGURACIÓN DE BPM ====================
     
     private void reproducirCancionActual() {
         if (cancionActual >= canciones.size()) {
@@ -431,7 +477,6 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 throw new Exception("Archivo no encontrado: " + rutaCancion);
             }
             
-            // Crear AudioNode desde archivo físico
             audioNode = crearAudioNodeDesdeArchivo(archivoAudio);
             
             if (audioNode != null) {
@@ -443,6 +488,15 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 float duracion = analisisActual.getDuracionTotal();
                 System.out.println("  ⏱ Duración: " + formatearTiempo(duracion));
                 System.out.println("  ✓ Reproduciendo correctamente");
+                
+                // ⭐ NUEVO: Configurar pulso rítmico según BPM detectado
+                if (analisisActual != null && gameplayUI != null) {
+                    float bpm = (float) analisisActual.getBPMEstimado();
+                    if (bpm > 0) {
+                        gameplayUI.configurarPulsoBPM(bpm);
+                        System.out.println("  🎵 BPM: " + String.format("%.1f", bpm));
+                    }
+                }
                 
                 if (gameplayUI != null) {
                     String nombre = archivoAudio.getName().replace(".wav", "");
@@ -456,7 +510,6 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             System.err.println("  ❌ Error: " + e.getMessage());
             e.printStackTrace();
             
-            // Saltar a la siguiente canción
             if (cancionActual + 1 < canciones.size()) {
                 System.out.println("  ⏭ Saltando a la siguiente...");
                 cancionActual++;
@@ -468,18 +521,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    /**
-     * ⭐ MÉTODO CLAVE: Crea AudioNode desde archivo físico
-     * Usa AudioKey para compatibilidad con jME3
-     */
     private AudioNode crearAudioNodeDesdeArchivo(File archivo) {
         try {
             WAVLoader loader = new WAVLoader();
-            
-            // Crear AudioKey (no AssetKey genérico)
             AudioKey audioKey = new AudioKey(archivo.getName(), false);
             
-            // Crear AssetInfo que lee desde el archivo
             AssetInfo assetInfo = new AssetInfo(assetManager, audioKey) {
                 @Override
                 public InputStream openStream() {
@@ -492,10 +538,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 }
             };
             
-            // Cargar audio data
             AudioData audioData = (AudioData) loader.load(assetInfo);
-            
-            // Crear nodo de audio
             AudioNode node = new AudioNode(audioData, audioKey);
             node.setPositional(false);
             node.setReverbEnabled(false);
@@ -547,7 +590,6 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         float tamano = 70f;
         Geometry flechaGeom = new Geometry("Flecha", new Quad(tamano, tamano));
         
-        // Material con color sólido (fallback)
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         mat.setColor("Color", flechaData.getDireccion().getColor());
         mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
@@ -589,7 +631,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             FlechaControl control = flecha.getControl(FlechaControl.class);
             
             if (control != null && control.fueErrada() && !control.fueGolpeada()) {
-                registrarMiss();
+                // Solo registrar miss si no fue procesada antes
+                if (!flechasProcesadas.contains(control)) {
+                    registrarMiss();
+                    flechasProcesadas.add(control);
+                }
                 flecha.removeFromParent();
                 iterator.remove();
             } else if (control != null && control.fueGolpeada()) {
@@ -600,7 +646,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    // ==================== SISTEMA DE INPUT ====================
+    // ==================== SISTEMA DE INPUT CON WASD + FLECHAS ====================
     
     private void setupInputs() {
         mappingTeclas = new HashMap<>();
@@ -610,126 +656,275 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         mappingTeclas.put(Direccion.DERECHA, "Derecha");
         mappingTeclas.put(Direccion.ESPACIO, "Espacio");
         
+        // Limpiar mappings previos
         try {
-            app.getInputManager().deleteMapping("Arriba");
-            app.getInputManager().deleteMapping("Abajo");
-            app.getInputManager().deleteMapping("Izquierda");
-            app.getInputManager().deleteMapping("Derecha");
-            app.getInputManager().deleteMapping("Espacio");
+            for (String mapping : mappingTeclas.values()) {
+                app.getInputManager().deleteMapping(mapping);
+            }
         } catch (Exception e) {}
         
-        app.getInputManager().addMapping("Arriba", new KeyTrigger(KeyInput.KEY_W));
-        app.getInputManager().addMapping("Abajo", new KeyTrigger(KeyInput.KEY_DOWN));
-        app.getInputManager().addMapping("Izquierda", new KeyTrigger(KeyInput.KEY_A));
-        app.getInputManager().addMapping("Derecha", new KeyTrigger(KeyInput.KEY_RIGHT));
-        app.getInputManager().addMapping("Espacio", new KeyTrigger(KeyInput.KEY_SPACE));
+        // Configurar AMBOS esquemas de control (WASD + Flechas)
+        app.getInputManager().addMapping("Arriba", 
+            new KeyTrigger(KeyInput.KEY_W),
+            new KeyTrigger(KeyInput.KEY_UP)
+        );
         
-        app.getInputManager().addListener(this, "Arriba", "Abajo", "Izquierda", "Derecha", "Espacio");
+        app.getInputManager().addMapping("Abajo", 
+            new KeyTrigger(KeyInput.KEY_S),
+            new KeyTrigger(KeyInput.KEY_DOWN)
+        );
         
-        System.out.println("✓ Inputs configurados (W/↓/A/→/SPACE)");
+        app.getInputManager().addMapping("Izquierda", 
+            new KeyTrigger(KeyInput.KEY_A),
+            new KeyTrigger(KeyInput.KEY_LEFT)
+        );
+        
+        app.getInputManager().addMapping("Derecha", 
+            new KeyTrigger(KeyInput.KEY_D),
+            new KeyTrigger(KeyInput.KEY_RIGHT)
+        );
+        
+        app.getInputManager().addMapping("Espacio", 
+            new KeyTrigger(KeyInput.KEY_SPACE)
+        );
+        
+        app.getInputManager().addListener(this, 
+            "Arriba", "Abajo", "Izquierda", "Derecha", "Espacio");
+        
+        System.out.println("✓ Inputs configurados:");
+        System.out.println("  ARRIBA:    W o ↑");
+        System.out.println("  ABAJO:     S o ↓");
+        System.out.println("  IZQUIERDA: A o ←");
+        System.out.println("  DERECHA:   D o →");
+        System.out.println("  ESPECIAL:  ESPACIO");
     }
     
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
-        if (!isPressed) return;
         if (menuPausa != null && menuPausa.estaPausado()) return;
         if (juegoTerminado) return;
         
-        Direccion direccionPresionada = null;
-        for (Map.Entry<Direccion, String> entry : mappingTeclas.entrySet()) {
-            if (entry.getValue().equals(name)) {
-                direccionPresionada = entry.getKey();
-                break;
+        Direccion direccion = obtenerDireccionDesdeTecla(name);
+        if (direccion != null) {
+            teclasPresionadas.put(direccion, isPressed);
+            
+            if (isPressed) {
+                procesarInputInmediato(direccion);
             }
-        }
-        
-        if (direccionPresionada != null) {
-            procesarInput(direccionPresionada);
         }
     }
     
-    // ==================== SISTEMA DE PUNTUACIÓN ====================
+    /**
+     * ⭐ MEJORADO: Procesa input con activación de zonas visuales
+     */
+    private void procesarInputInmediato(Direccion direccion) {
+        // Verificar cooldown
+        float ultimoTiempo = ultimoTiempoInput.get(direccion);
+        if (tiempoTranscurrido - ultimoTiempo < cooldownInput) {
+            return;
+        }
+        
+        // ⭐ NUEVO: Activar zona de impacto visualmente
+        if (gameplayUI != null) {
+            gameplayUI.activarZona(direccion);
+            
+            // ⭐ Si es ESPACIO, activar brillo especial
+            if (direccion == Direccion.ESPACIO) {
+                gameplayUI.activarBrilloEspacio();
+            }
+        }
+        
+        // Buscar flecha válida
+        FlechaControl flechaObjetivo = encontrarMejorFlecha(direccion);
+        
+        if (flechaObjetivo != null) {
+            float delay = flechaObjetivo.calcularDelay(tiempoTranscurrido);
+            
+            if (delay <= VENTANA_MALA) {
+                evaluarHit(flechaObjetivo, delay);
+                flechaObjetivo.brillar();
+                ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+                flechasProcesadas.add(flechaObjetivo);
+            }
+        }
+    }
     
-    private void procesarInput(Direccion direccion) {
-        FlechaControl flechaMasCercana = null;
+    private void procesarInputsContinuos() {
+        for (Map.Entry<Direccion, Boolean> entry : teclasPresionadas.entrySet()) {
+            if (entry.getValue()) {
+                Direccion dir = entry.getKey();
+                float ultimoTiempo = ultimoTiempoInput.get(dir);
+                
+                if (tiempoTranscurrido - ultimoTiempo >= cooldownInput) {
+                    FlechaControl flecha = encontrarMejorFlecha(dir);
+                    if (flecha != null && !flechasProcesadas.contains(flecha)) {
+                        float delay = flecha.calcularDelay(tiempoTranscurrido);
+                        if (delay <= VENTANA_MALA) {
+                            evaluarHit(flecha, delay);
+                            flecha.brillar();
+                            ultimoTiempoInput.put(dir, tiempoTranscurrido);
+                            flechasProcesadas.add(flecha);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private FlechaControl encontrarMejorFlecha(Direccion direccion) {
+        FlechaControl mejorFlecha = null;
         float menorDelay = Float.MAX_VALUE;
         
         for (Geometry flecha : flechasActivas) {
             FlechaControl control = flecha.getControl(FlechaControl.class);
-            if (control == null || control.fueGolpeada() || control.fueErrada()) continue;
+            if (control == null || control.fueGolpeada() || control.fueErrada()) {
+                continue;
+            }
+            
+            if (flechasProcesadas.contains(control)) {
+                continue;
+            }
             
             Direccion direccionFlecha = control.getDireccion();
             
+            // Manejar flechas invertidas (doradas)
             if (control.getTipo() == TipoFlecha.DORADA && control.estaInvertida()) {
                 direccionFlecha = direccionFlecha.getOpuesta();
             }
             
             if (direccionFlecha == direccion) {
-                float delay = control.calcularDelay(tiempoTranscurrido);
-                if (delay < menorDelay && delay < 0.3f) {
+                float delay = Math.abs(control.calcularDelay(tiempoTranscurrido));
+                
+                if (delay <= VENTANA_MALA && delay < menorDelay) {
                     menorDelay = delay;
-                    flechaMasCercana = control;
+                    mejorFlecha = control;
                 }
             }
         }
         
-        if (flechaMasCercana != null) {
-            evaluarHit(flechaMasCercana, menorDelay);
-            flechaMasCercana.brillar();
-        }
+        return mejorFlecha;
     }
     
+    private Direccion obtenerDireccionDesdeTecla(String nombreTecla) {
+        for (Map.Entry<Direccion, String> entry : mappingTeclas.entrySet()) {
+            if (entry.getValue().equals(nombreTecla)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+    
+    // ==================== SISTEMA DE PUNTUACIÓN CON FEEDBACK VISUAL ====================
+    
+    /**
+     * ⭐ MEJORADO: Evaluación con activación de brillo en objeto central
+     */
     private void evaluarHit(FlechaControl flecha, float delay) {
+        delay = Math.abs(delay);
+        
         int puntosBase;
         String feedback;
         ColorRGBA colorFeedback;
+        boolean perfectHit = false;
         
-        if (delay < 0.05f) {
+        if (delay <= VENTANA_PERFECTA) {
             puntosBase = 100;
             feedback = "¡PERFECTO!";
             colorFeedback = new ColorRGBA(0, 1, 0.5f, 1);
             perfectos++;
             combo++;
-        } else if (delay < 0.15f) {
+            perfectHit = true;
+            
+            if (delay <= 0.02f) {
+                puntosBase = 150;
+                feedback = "¡¡IMPECABLE!!";
+            }
+            
+        } else if (delay <= VENTANA_BUENA) {
             puntosBase = 50;
             feedback = "BUENO";
             colorFeedback = ColorRGBA.Yellow;
             buenos++;
             combo++;
-        } else {
+            
+        } else if (delay <= VENTANA_MALA) {
             puntosBase = 20;
             feedback = "MALO";
             colorFeedback = ColorRGBA.Orange;
             malos++;
             combo = 0;
+            
+        } else {
+            puntosBase = 10;
+            feedback = "TARDÍO";
+            colorFeedback = ColorRGBA.Red;
+            malos++;
+            combo = 0;
         }
         
-        int puntos = (int)(puntosBase * flecha.getTipo().getMultiplicadorPuntos());
+        // Sistema de multiplicadores
+        float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
         
         if (combo > 5) {
-            puntos = (int)(puntos * (1 + combo * 0.1f));
+            multiplicador *= (1 + combo * 0.05f);
         }
         
+        if (perfectos >= 10 && buenos == 0 && malos == 0) {
+            multiplicador *= 1.5f;
+            if (perfectos % 10 == 0) {
+                feedback = "¡RACHA PERFECTA x" + perfectos + "!";
+            }
+        }
+        
+        int puntos = (int)(puntosBase * multiplicador);
         score += puntos;
         
         if (combo > maxCombo) {
             maxCombo = combo;
         }
         
+        // Recuperar vida con perfectos consecutivos
+        if (combo >= 10 && delay <= VENTANA_PERFECTA) {
+            vida = Math.min(100, vida + 2);
+            if (gameplayUI != null) {
+                gameplayUI.actualizarVida(vida);
+            }
+        }
+        
+        // ⭐ NUEVO: Actualizar UI con feedback visual mejorado
         if (gameplayUI != null) {
             gameplayUI.actualizarScore(score);
             gameplayUI.mostrarFeedback(feedback, colorFeedback);
+            gameplayUI.actualizarCombo(combo);
+            
+            // ⭐ Activar brillo en el objeto central
+            ColorRGBA colorFlecha = flecha.getDireccion().getColor();
+            gameplayUI.activarBrilloHit(colorFlecha, perfectHit);
         }
+        
+        // Marcar flecha como golpeada
+        flecha.marcarComoGolpeada();
     }
     
     private void registrarMiss() {
         misses++;
         combo = 0;
-        vida -= 10;
+        
+        int penalizacion = 10;
+        if (misses > 5) {
+            penalizacion = 15;
+        }
+        if (misses > 10) {
+            penalizacion = 20;
+        }
+        
+        vida -= penalizacion;
+        vida = Math.max(0, vida);
         
         if (gameplayUI != null) {
             gameplayUI.actualizarVida(vida);
             gameplayUI.mostrarFeedback("MISS!", ColorRGBA.Red);
+            gameplayUI.actualizarCombo(0);
         }
     }
     
@@ -757,6 +952,32 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         if (totalNotas > 0) {
             float precision = ((float)(perfectos + buenos) / totalNotas) * 100;
             System.out.println(String.format("Precisión: %.1f%%", precision));
+            
+            String ranking = calcularRanking(precision, perfectos, totalNotas);
+            System.out.println("Ranking: " + ranking);
+        }
+        System.out.println("===========================\n");
+    }
+    
+    private String calcularRanking(float precision, int perfectos, int totalNotas) {
+        float ratioPerfectos = (float)perfectos / totalNotas * 100;
+        
+        if (precision >= 98 && ratioPerfectos >= 90) {
+            return "SSS - ¡LEYENDA!";
+        } else if (precision >= 95 && ratioPerfectos >= 80) {
+            return "SS - ¡MAESTRO!";
+        } else if (precision >= 90) {
+            return "S - ¡EXCELENTE!";
+        } else if (precision >= 85) {
+            return "A - ¡MUY BIEN!";
+        } else if (precision >= 75) {
+            return "B - BIEN";
+        } else if (precision >= 60) {
+            return "C - REGULAR";
+        } else if (precision >= 40) {
+            return "D - NECESITAS PRACTICAR";
+        } else {
+            return "F - SIGUE INTENTANDO";
         }
     }
     
@@ -793,17 +1014,18 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         try {
             app.getInputManager().removeListener(this);
-            app.getInputManager().deleteMapping("Arriba");
-            app.getInputManager().deleteMapping("Abajo");
-            app.getInputManager().deleteMapping("Izquierda");
-            app.getInputManager().deleteMapping("Derecha");
-            app.getInputManager().deleteMapping("Espacio");
+            for (String mapping : mappingTeclas.values()) {
+                app.getInputManager().deleteMapping(mapping);
+            }
         } catch (Exception e) {
             System.err.println("Error limpiando inputs: " + e.getMessage());
         }
         
         gameNode.detachAllChildren();
         flechasActivas.clear();
+        flechasProcesadas.clear();
+        teclasPresionadas.clear();
+        ultimoTiempoInput.clear();
         
         System.out.println("✓ GameplayAppState limpiado");
     }
@@ -811,10 +1033,12 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     @Override
     protected void onEnable() {
         app.getGuiNode().attachChild(gameNode);
+        System.out.println("▶ GameplayAppState habilitado");
     }
     
     @Override
     protected void onDisable() {
         gameNode.removeFromParent();
+        System.out.println("⏸ GameplayAppState deshabilitado");
     }
 }
