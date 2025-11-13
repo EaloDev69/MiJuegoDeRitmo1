@@ -16,41 +16,53 @@ import java.io.File;
 import java.util.*;
 import javax.swing.SwingUtilities;
 import UI.VentanaCargaCanciones;
+import UI.VentanaInstrucciones;
+import UI.VentanaSeleccionCanciones;
 
 /**
- * MenuAppState actualizado con el nuevo sistema de generación de flechas
+ * MenuAppState actualizado con sistema de modo aleatorio
+ * ✅ Selección de canciones con checkboxes
+ * ✅ NUEVO: Soporte para modo aleatorio (shuffle)
+ * ✅ Análisis de canciones con ventana de progreso
+ * ✅ Configuración de volumen
  * 
  * @author CamiLaNekoUwU_Gamer
  */
 public class MenuAppState extends BaseAppState {
-
+    
     private MiJuegoDeRitmo juego;
     private Container contenedorMenu;
     private PlaylistManager playlistManager;
-    private AnalizadorCanciones analizador; // NUEVO: Instancia del analizador
+    private AnalizadorCanciones analizador;
     
-    // Guardamos la selección de canciones aquí
+    // Guardamos la selección de canciones
     private final Set<String> cancionesSeleccionadas = new HashSet<>();
-
+    
+    // ⭐ NUEVO: Flag para modo aleatorio
+    private boolean modoAleatorioActivo = false;
+    
     // UI
-    private Button btnEmpezar, btnSalir, btnInstrucciones, btnAbrirCarpeta, 
+    private Button btnEmpezar, btnSalir, btnInstrucciones, btnAbrirCarpeta,
                    btnSeleccionarCanciones, btnVolumen;
     private Label lblTitulo, lblInstrucciones, lblSeleccionCount;
     
+    // ⭐ NUEVO: Label para indicador de modo aleatorio
+    private Label lblModoAleatorio;
+    
     // Volumen guardado como entero (0-100)
     private int volumenActual = 100;
-
+    
     public MenuAppState() {
         this.playlistManager = new PlaylistManager("assets/canciones");
     }
-
+    
     @Override
     protected void initialize(Application app) {
         this.juego = (MiJuegoDeRitmo) app;
-        this.analizador = new AnalizadorCanciones(app.getAssetManager()); // NUEVO: Crear analizador
+        this.analizador = new AnalizadorCanciones(app.getAssetManager());
         iniciarMenu(app);
     }
-
+    
     public void iniciarMenu(Application app) {
         GuiGlobals.initialize(app);
         crearContenedorMenu();
@@ -60,14 +72,14 @@ public class MenuAppState extends BaseAppState {
         // Cargar playlist al inicio
         cargarPlaylistAsync();
     }
-
+    
     private void crearContenedorMenu() {
         contenedorMenu = new Container();
         float ancho = juego.getCamera().getWidth();
         float alto = juego.getCamera().getHeight();
-        contenedorMenu.setLocalTranslation(ancho / 2f - 220f, alto / 2f + 240f, 0f);
+        contenedorMenu.setLocalTranslation(ancho / 2f - 300f, alto / 2f + 300f, 0f);
     }
-
+    
     private void crearComponentesUI() {
         // Título
         lblTitulo = new Label("=== JUEGO DE RITMO ===");
@@ -87,8 +99,15 @@ public class MenuAppState extends BaseAppState {
         // Contador de canciones seleccionadas
         lblSeleccionCount = new Label("Canciones seleccionadas: 0");
         lblSeleccionCount.setColor(ColorRGBA.Gray);
-        lblSeleccionCount.setInsets(new Insets3f(5, 5, 10, 5));
+        lblSeleccionCount.setInsets(new Insets3f(5, 5, 5, 5));
         contenedorMenu.addChild(lblSeleccionCount);
+        
+        // ⭐ NUEVO: Indicador de modo aleatorio
+        lblModoAleatorio = new Label("");
+        lblModoAleatorio.setColor(ColorRGBA.Orange);
+        lblModoAleatorio.setFontSize(14f);
+        lblModoAleatorio.setInsets(new Insets3f(0, 5, 10, 5));
+        contenedorMenu.addChild(lblModoAleatorio);
         
         // Botón seleccionar canciones
         btnSeleccionarCanciones = new Button("Seleccionar Canciones");
@@ -97,22 +116,22 @@ public class MenuAppState extends BaseAppState {
         btnSeleccionarCanciones.setFontSize(16f);
         btnSeleccionarCanciones.setInsets(new Insets3f(8, 15, 8, 15));
         contenedorMenu.addChild(btnSeleccionarCanciones);
-
+        
         // Botón abrir carpeta
         btnAbrirCarpeta = new Button("Abrir Carpeta Canciones");
         btnAbrirCarpeta.addClickCommands(src -> abrirCarpetaCanciones());
         contenedorMenu.addChild(btnAbrirCarpeta);
-
+        
         // Botón para abrir ventana de volumen
         btnVolumen = new Button("Configurar Volumen");
         btnVolumen.addClickCommands(src -> abrirVentanaVolumen());
         contenedorMenu.addChild(btnVolumen);
-
+        
         // Botón instrucciones
         btnInstrucciones = new Button("Instrucciones");
         btnInstrucciones.addClickCommands(src -> mostrarInstrucciones());
         contenedorMenu.addChild(btnInstrucciones);
-
+        
         // Label instrucciones
         lblInstrucciones = new Label("");
         lblInstrucciones.setInsets(new Insets3f(10, 10, 10, 10));
@@ -123,13 +142,12 @@ public class MenuAppState extends BaseAppState {
         btnSalir.addClickCommands(src -> juego.stop());
         contenedorMenu.addChild(btnSalir);
     }
-
+    
     /**
      * Carga la playlist en background
      */
     private void cargarPlaylistAsync() {
         System.out.println("Cargando playlist...");
-        
         new Thread(() -> {
             try {
                 playlistManager.cargarPlaylist();
@@ -141,34 +159,59 @@ public class MenuAppState extends BaseAppState {
             }
         }, "PlaylistLoader").start();
     }
-
+    
     /**
-     * Abre ventana Swing separada para selección
+     * ⭐ ACTUALIZADO: Ahora maneja el modo aleatorio
      */
     private void abrirPantallaSeleccion() {
-        System.out.println("\n>>> Abriendo ventana de seleccion...");
+        System.out.println("\n>>> Abriendo ventana de selección...");
         
-        // Ejecutar en el thread de AWT (Swing)
         SwingUtilities.invokeLater(() -> {
             java.awt.Frame parentFrame = obtenerFramePadre();
             
-            // Abrir ventana modal (bloquea hasta que se cierre)
-            Set<String> nuevaSeleccion = UI.VentanaSeleccionCanciones.mostrarDialogo(
-                parentFrame, 
-                playlistManager, 
-                cancionesSeleccionadas
-            );
+            // ⭐ NUEVO: Usar ResultadoSeleccion en vez de Set
+            VentanaSeleccionCanciones.ResultadoSeleccion resultado =
+                VentanaSeleccionCanciones.mostrarDialogo(
+                    parentFrame,
+                    playlistManager,
+                    cancionesSeleccionadas
+                );
             
             // Actualizar selección en el thread de JME
             juego.enqueue(() -> {
                 cancionesSeleccionadas.clear();
-                cancionesSeleccionadas.addAll(nuevaSeleccion);
+                cancionesSeleccionadas.addAll(resultado.getCancionesComoSet());
+                
+                // ⭐ NUEVO: Actualizar estado del modo aleatorio
+                modoAleatorioActivo = resultado.isModoAleatorio();
+                
                 actualizarContadorSeleccion();
+                actualizarIndicadorModoAleatorio();
+                
+                // Log para debugging
+                if (modoAleatorioActivo) {
+                    System.out.println("✓ Modo aleatorio activado para " + resultado.size() + " canciones");
+                } else {
+                    System.out.println("✓ Modo normal - " + resultado.size() + " canciones seleccionadas");
+                }
+                
                 return null;
             });
         });
     }
-
+    
+    /**
+     * ⭐ NUEVO: Actualiza el indicador visual de modo aleatorio
+     */
+    private void actualizarIndicadorModoAleatorio() {
+        if (modoAleatorioActivo && !cancionesSeleccionadas.isEmpty()) {
+            lblModoAleatorio.setText("🔀 Modo Aleatorio: ACTIVO");
+            lblModoAleatorio.setColor(ColorRGBA.Orange);
+        } else {
+            lblModoAleatorio.setText("");
+        }
+    }
+    
     /**
      * Abre ventana Swing para configurar volumen
      */
@@ -178,10 +221,8 @@ public class MenuAppState extends BaseAppState {
         SwingUtilities.invokeLater(() -> {
             java.awt.Frame parentFrame = obtenerFramePadre();
             
-            // Abrir ventana modal
             int nuevoVolumen = UI.VentanaVolumen.mostrarDialogo(parentFrame, volumenActual);
             
-            // Actualizar volumen en el thread de JME
             juego.enqueue(() -> {
                 volumenActual = nuevoVolumen;
                 juego.setMasterVolume(volumenActual / 100.0f);
@@ -190,7 +231,7 @@ public class MenuAppState extends BaseAppState {
             });
         });
     }
-
+    
     /**
      * Obtiene el Frame padre de la aplicación
      */
@@ -202,7 +243,7 @@ public class MenuAppState extends BaseAppState {
         }
         return null;
     }
-
+    
     /**
      * Actualiza el label del contador
      */
@@ -218,33 +259,17 @@ public class MenuAppState extends BaseAppState {
         
         System.out.println("Contador actualizado: " + count + " canciones");
     }
-
+    
     /**
      * Muestra las instrucciones del juego - ACTUALIZADO
      */
     private void mostrarInstrucciones() {
-        String instrucciones =
-            "1. Coloca archivos .wav en:\n" 
-            + "   MiJuegoDeRitmo1/assets/canciones\n\n" 
-            + "2. Presiona 'Seleccionar Canciones'\n"
-            + "   para elegir cuales jugar\n\n" 
-            + "3. Presiona 'EMPEZAR JUEGO'\n\n"
-            + "=== CONTROLES ===\n"
-            + "↑↓←→ o WASD: Golpear flechas\n\n"
-            + "=== TIPOS DE FLECHAS ===\n"
-            + "• NORMALES: Color por dirección\n"
-            + "  Movimiento directo\n"
-            + "• RÁPIDAS: Más brillantes\n"
-            + "  x1.5 puntos\n"
-            + "• DORADAS: Amarillas brillantes\n"
-            + "  ¡SE INVIERTEN! x2 puntos";
-        
-        lblInstrucciones.setText(instrucciones);
-        lblInstrucciones.setFontSize(13);
-        lblInstrucciones.setColor(ColorRGBA.Cyan);
-        System.out.println("\n" + instrucciones);
-    }
-
+    SwingUtilities.invokeLater(() -> {
+        java.awt.Frame parentFrame = obtenerFramePadre();
+        VentanaInstrucciones.mostrar(parentFrame);
+    });
+}
+    
     /**
      * Abre la carpeta de canciones en el explorador
      */
@@ -257,14 +282,14 @@ public class MenuAppState extends BaseAppState {
                 carpeta.mkdirs();
                 System.out.println("Carpeta creada: " + carpeta.getAbsolutePath());
             }
-
+            
             if (java.awt.Desktop.isDesktopSupported()) {
                 java.awt.Desktop.getDesktop().open(carpeta);
                 System.out.println("Abriendo: " + carpeta.getAbsolutePath());
             } else {
                 System.out.println("Desktop no soportado");
             }
-
+            
             // Recargar después de 1 segundo
             new Thread(() -> {
                 try {
@@ -274,23 +299,42 @@ public class MenuAppState extends BaseAppState {
                     e.printStackTrace();
                 }
             }).start();
-
+            
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
         }
     }
-
+    
     /**
-     * Inicia el juego con análisis completo - ACTUALIZADO PARA NUEVO SISTEMA
+     * ⭐ ACTUALIZADO: Inicia el juego con o sin modo aleatorio
      */
     private void iniciarJuego() {
         if (juego == null) return;
         
         // Determinar qué canciones jugar
-        List<String> lista = cancionesSeleccionadas.isEmpty()
-                ? playlistManager.getCanciones()
-                : new ArrayList<>(cancionesSeleccionadas);
+        List<String> lista;
+        
+        if (cancionesSeleccionadas.isEmpty()) {
+            // Si no hay selección, usar todas las canciones
+            lista = playlistManager.getCanciones();
+            
+            // ⭐ Si modo aleatorio está activo, mezclar
+            if (modoAleatorioActivo && !lista.isEmpty()) {
+                lista = new ArrayList<>(lista);
+                Collections.shuffle(lista);
+                System.out.println("🔀 Todas las canciones mezcladas");
+            }
+        } else {
+            // Usar canciones seleccionadas
+            lista = new ArrayList<>(cancionesSeleccionadas);
+            
+            // ⭐ Si modo aleatorio está activo, mezclar
+            if (modoAleatorioActivo) {
+                Collections.shuffle(lista);
+                System.out.println("🔀 Canciones seleccionadas mezcladas");
+            }
+        }
         
         if (lista.isEmpty()) {
             System.err.println("ERROR: No hay canciones!");
@@ -301,16 +345,32 @@ public class MenuAppState extends BaseAppState {
         
         System.out.println("\n=== PREPARANDO JUEGO ===");
         System.out.println("Canciones a analizar: " + lista.size());
+        System.out.println("Modo aleatorio: " + (modoAleatorioActivo ? "SÍ 🔀" : "NO"));
+        
+        // ⭐ Mostrar orden de reproducción
+        if (modoAleatorioActivo) {
+            System.out.println("\n🔀 ORDEN DE REPRODUCCIÓN (ALEATORIO):");
+        } else {
+            System.out.println("\nORDEN DE REPRODUCCIÓN:");
+        }
+        
+        for (int i = 0; i < lista.size(); i++) {
+            String nombre = new File(lista.get(i)).getName();
+            System.out.println("  " + (i + 1) + ". " + nombre);
+        }
+        
+        // Hacer lista final (inmutable para el análisis)
+        final List<String> listaFinal = new ArrayList<>(lista);
         
         // Abrir ventana de carga y análisis
         SwingUtilities.invokeLater(() -> {
             java.awt.Frame parentFrame = obtenerFramePadre();
             
-            // ⭐ CAMBIO PRINCIPAL: Usar mostrarYAnalizarConResultados para obtener el Map
-            Map<String, ResultadoAnalisis> resultados = 
+            // ⭐ Usar mostrarYAnalizarConResultados para obtener el Map
+            Map<String, ResultadoAnalisis> resultados =
                 VentanaCargaCanciones.mostrarYAnalizarConResultados(
-                    parentFrame, 
-                    lista, 
+                    parentFrame,
+                    listaFinal,
                     analizador
                 );
             
@@ -320,8 +380,12 @@ public class MenuAppState extends BaseAppState {
                     System.out.println("\n✓ Análisis completado - Iniciando gameplay");
                     System.out.println("Resultados obtenidos: " + resultados.size() + " canciones");
                     
-                    // ⭐ Llamar al nuevo método que acepta el Map de análisis
-                    juego.startGameplay(lista, resultados);
+                    if (modoAleatorioActivo) {
+                        System.out.println("🔀 Playlist en modo ALEATORIO");
+                    }
+                    
+                    // ⭐ Llamar con la lista en el orden correcto (ya mezclada si aplica)
+                    juego.startGameplay(listaFinal, resultados);
                 } else {
                     System.out.println("\n✕ Análisis cancelado o falló");
                 }
@@ -329,44 +393,60 @@ public class MenuAppState extends BaseAppState {
             });
         });
     }
-
+    
     @Override
     public void update(float tpf) {
         // El volumen ahora se maneja desde la ventana separada
     }
-
+    
     @Override
     protected void cleanup(Application app) {
         limpiarMenu(app);
     }
-
+    
     public void limpiarMenu(Application app) {
         if (contenedorMenu != null && contenedorMenu.getParent() != null) {
             juego.getGuiNode().detachChild(contenedorMenu);
         }
         System.out.println("Menu limpiado");
     }
-
+    
     @Override
     protected void onEnable() {
         if (contenedorMenu != null && contenedorMenu.getParent() == null) {
             juego.getGuiNode().attachChild(contenedorMenu);
         }
     }
-
+    
     @Override
     protected void onDisable() {
         if (contenedorMenu != null && contenedorMenu.getParent() != null) {
             juego.getGuiNode().detachChild(contenedorMenu);
         }
     }
-
-    // Getters
-    public PlaylistManager getPlaylistManager() { 
-        return playlistManager; 
+    
+    // ==================== GETTERS Y SETTERS ====================
+    
+    public PlaylistManager getPlaylistManager() {
+        return playlistManager;
     }
     
-    public void setPlaylistManager(PlaylistManager pm) { 
-        this.playlistManager = pm; 
+    public void setPlaylistManager(PlaylistManager pm) {
+        this.playlistManager = pm;
+    }
+    
+    /**
+     * ⭐ NUEVO: Getter para el estado del modo aleatorio
+     */
+    public boolean isModoAleatorioActivo() {
+        return modoAleatorioActivo;
+    }
+    
+    /**
+     * ⭐ NUEVO: Setter para el modo aleatorio (por si se quiere activar desde código)
+     */
+    public void setModoAleatorio(boolean activo) {
+        this.modoAleatorioActivo = activo;
+        actualizarIndicadorModoAleatorio();
     }
 }
