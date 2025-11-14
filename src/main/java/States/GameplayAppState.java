@@ -72,6 +72,12 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private List<FlechaData> flechasAGenerar;
     private int indiceFlechaActual = 0;
     private List<Geometry> flechasActivas;
+
+    // Mecánica ESPACIO (parpadeos dobles sin flechas)
+    private List<Float> eventosEspacio;
+    private int indiceEventoEspacio = 0;
+    private boolean blink1Disparado = false;
+    private boolean blink2Disparado = false;
     
     // Sistema de playlist
     private List<String> canciones;
@@ -111,6 +117,8 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     // Otros
     private Vector3f centroPantalla;
     private Map<Direccion, String> mappingTeclas;
+    // Modo práctica: sin barra de vida ni game over por vida
+    private boolean modoPractica = false;
     
     // ==================== CONSTRUCTOR ====================
     
@@ -134,6 +142,12 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             this.analisisActual = analisis.get(primerCancion);
         }
     }
+
+    // Sobrecarga para activar modo práctica
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, boolean modoPractica) {
+        this(canciones, analisis);
+        this.modoPractica = modoPractica;
+    }
     
     // ==================== INICIALIZACIÓN ====================
     
@@ -156,7 +170,12 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // Inicializar sistemas
         setupInputs();
         inicializarUI();
+        // En modo práctica ocultar barra de vida
+        if (modoPractica && gameplayUI != null) {
+            gameplayUI.ocultarBarraVida();
+        }
         generarFlechasCancion();
+        inicializarEventosEspacio();
         reproducirCancionActual();
         
         System.out.println("✓ Gameplay inicializado correctamente");
@@ -308,14 +327,17 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // Generar y verificar flechas
         generarFlechasPorTiempo();
         verificarMisses();
+
+        // Actualizar mecánica de ESPACIO (parpadeos dobles y misses)
+        actualizarMecanicaEspacio();
         
         // Verificar fin de canción
         if (audioNode != null && audioNode.getStatus() == AudioSource.Status.Stopped && !juegoTerminado) {
             terminarJuego("cancion_finalizada");
         }
         
-        // Verificar game over
-        if (vida <= 0 && !juegoTerminado) {
+        // Verificar game over (omitido en modo práctica)
+        if (!modoPractica && vida <= 0 && !juegoTerminado) {
             terminarJuego("game_over");
         }
     }
@@ -565,6 +587,17 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         System.out.println("  Flechas generadas: " + flechasAGenerar.size());
     }
+
+    private void inicializarEventosEspacio() {
+        if (analisisActual == null) return;
+        // Usar beats lentos como eventos de ESPACIO
+        this.eventosEspacio = new ArrayList<>(analisisActual.beatsLentos);
+        Collections.sort(this.eventosEspacio);
+        this.indiceEventoEspacio = 0;
+        this.blink1Disparado = false;
+        this.blink2Disparado = false;
+        System.out.println("  Eventos ESPACIO: " + this.eventosEspacio.size());
+    }
     
     private void generarFlechasPorTiempo() {
         while (indiceFlechaActual < flechasAGenerar.size()) {
@@ -603,12 +636,19 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             flechaGeom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD);
         }
         
+        // Calcular velocidad dinámica para llegar al target justo en el beat
+        float distancia = posInicial.distance(posTarget);
+        float tiempoRestante = flechaData.getBeatTime() - tiempoTranscurrido;
+        // Evitar divisiones por cero o negativas por retrasos del frame
+        tiempoRestante = Math.max(0.05f, tiempoRestante);
+        float velocidadDinamica = distancia / tiempoRestante;
+
         FlechaControl control = new FlechaControl(
             flechaData.getTipo(),
             flechaData.getDireccion(),
             posInicial,
             posTarget,
-            flechaData.getVelocidad(),
+            velocidadDinamica,
             flechaData.getBeatTime(),
             mat
         );
@@ -720,6 +760,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // ✅ CORREGIDO: Solo activar brillo ESPACIO (método que SÍ existe)
         if (gameplayUI != null && direccion == Direccion.ESPACIO) {
             gameplayUI.activarBrilloEspacio();
+            // Evaluar golpe para evento de ESPACIO si dentro de ventana
+            if (evaluarHitEspacioSiDentroVentana()) {
+                ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+            }
+            return; // No buscar flechas para ESPACIO
         }
         
         // Buscar flecha válida
@@ -733,6 +778,108 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 flechaObjetivo.brillar();
                 ultimoTiempoInput.put(direccion, tiempoTranscurrido);
                 flechasProcesadas.add(flechaObjetivo);
+            }
+        }
+    }
+
+    private void actualizarMecanicaEspacio() {
+        if (eventosEspacio == null || indiceEventoEspacio >= eventosEspacio.size()) return;
+        float evento = eventosEspacio.get(indiceEventoEspacio);
+        float t = tiempoTranscurrido;
+        
+        // Programar doble parpadeo: 0.6s y 0.1s antes del evento
+        if (!blink1Disparado && t >= evento - 0.6f) {
+            if (gameplayUI != null) gameplayUI.activarBrilloEspacio();
+            blink1Disparado = true;
+        }
+        if (!blink2Disparado && t >= evento - 0.1f) {
+            if (gameplayUI != null) gameplayUI.activarBrilloEspacio();
+            blink2Disparado = true;
+        }
+        
+        // Registrar miss si pasó la ventana
+        if (t > evento + VENTANA_MISS) {
+            registrarMiss();
+            avanzarEventoEspacio();
+        }
+    }
+
+    private boolean evaluarHitEspacioSiDentroVentana() {
+        if (eventosEspacio == null || indiceEventoEspacio >= eventosEspacio.size()) return false;
+        float evento = eventosEspacio.get(indiceEventoEspacio);
+        float delay = Math.abs(tiempoTranscurrido - evento);
+        if (delay <= VENTANA_MALA) {
+            evaluarHitEspacio(delay);
+            avanzarEventoEspacio();
+            return true;
+        }
+        return false;
+    }
+
+    private void avanzarEventoEspacio() {
+        indiceEventoEspacio++;
+        blink1Disparado = false;
+        blink2Disparado = false;
+    }
+
+    private void evaluarHitEspacio(float delay) {
+        delay = Math.abs(delay);
+        int puntosBase;
+        String feedback;
+        ColorRGBA colorFeedback;
+        boolean perfectHit = false;
+        
+        if (delay <= VENTANA_PERFECTA) {
+            puntosBase = 100;
+            feedback = "¡PERFECTO!";
+            colorFeedback = new ColorRGBA(0.8f, 0.8f, 1f, 1);
+            perfectos++;
+            combo++;
+            perfectHit = true;
+            if (delay <= 0.02f) {
+                puntosBase = 150;
+                feedback = "¡¡IMPECABLE!!";
+            }
+        } else if (delay <= VENTANA_BUENA) {
+            puntosBase = 50;
+            feedback = "BUENO";
+            colorFeedback = ColorRGBA.Yellow;
+            buenos++;
+            combo++;
+        } else if (delay <= VENTANA_MALA) {
+            puntosBase = 20;
+            feedback = "MALO";
+            colorFeedback = ColorRGBA.Orange;
+            malos++;
+            combo = 0;
+        } else {
+            puntosBase = 10;
+            feedback = "TARDÍO";
+            colorFeedback = ColorRGBA.Red;
+            malos++;
+            combo = 0;
+        }
+        
+        // Sin flecha: usar multiplicador base 1.0
+        float multiplicador = 1.0f;
+        if (combo > 5) {
+            multiplicador *= (1 + combo * 0.05f);
+        }
+        int puntos = (int)(puntosBase * multiplicador);
+        score += puntos;
+        if (combo > maxCombo) maxCombo = combo;
+        // Recuperar vida en perfect (si no es práctica)
+        if (!modoPractica && delay <= VENTANA_PERFECTA) {
+            vida = Math.min(100, vida + 2);
+            if (gameplayUI != null) gameplayUI.actualizarVida(vida);
+        }
+        if (gameplayUI != null) {
+            gameplayUI.actualizarScore(score);
+            gameplayUI.mostrarFeedback(feedback, colorFeedback);
+            gameplayUI.actualizarCombo(combo);
+            gameplayUI.activarBrilloHit(ColorRGBA.White);
+            if (perfectHit && puntos > 100) {
+                gameplayUI.mostrarBonusPuntos(puntos);
             }
         }
     }
@@ -872,7 +1019,8 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
         
         // Recuperar vida con perfectos consecutivos
-        if (combo >= 10 && delay <= VENTANA_PERFECTA) {
+        // Recuperar vida en perfect (si no es práctica)
+        if (!modoPractica && delay <= VENTANA_PERFECTA) {
             vida = Math.min(100, vida + 2);
             if (gameplayUI != null) {
                 gameplayUI.actualizarVida(vida);
@@ -911,18 +1059,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             penalizacion = 20;
         }
         
-        vida -= penalizacion;
-        vida = Math.max(0, vida);
-        
+        if (!modoPractica) {
+            vida -= penalizacion;
+            vida = Math.max(0, vida);
+            if (gameplayUI != null) {
+                gameplayUI.actualizarVida(vida);
+                // Advertencia si la vida está baja
+                if (vida <= 30 && vida > 0) {
+                    gameplayUI.mostrarAdvertenciaVidaBaja();
+                }
+            }
+        }
         if (gameplayUI != null) {
-            gameplayUI.actualizarVida(vida);
             gameplayUI.mostrarFeedback("MISS!", ColorRGBA.Red);
             gameplayUI.actualizarCombo(0);
-            
-            // Advertencia si la vida está baja
-            if (vida <= 30 && vida > 0) {
-                gameplayUI.mostrarAdvertenciaVidaBaja();
-            }
         }
     }
     

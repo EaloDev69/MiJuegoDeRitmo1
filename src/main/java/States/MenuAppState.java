@@ -13,6 +13,8 @@ import com.jme3.math.ColorRGBA;
 import com.simsilica.lemur.*;
 import com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo;
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import javax.swing.SwingUtilities;
 import UI.VentanaCargaCanciones;
@@ -43,7 +45,7 @@ public class MenuAppState extends BaseAppState {
     
     // UI
     private Button btnEmpezar, btnSalir, btnInstrucciones, btnAbrirCarpeta,
-                   btnSeleccionarCanciones, btnVolumen;
+                   btnSeleccionarCanciones, btnVolumen, btnModoPractica;
     private Label lblTitulo, lblInstrucciones, lblSeleccionCount;
     
     // ⭐ NUEVO: Label para indicador de modo aleatorio
@@ -53,7 +55,7 @@ public class MenuAppState extends BaseAppState {
     private int volumenActual = 100;
     
     public MenuAppState() {
-        this.playlistManager = new PlaylistManager("assets/canciones");
+        this.playlistManager = new PlaylistManager(resolverRutaCanciones());
     }
     
     @Override
@@ -95,6 +97,14 @@ public class MenuAppState extends BaseAppState {
         btnEmpezar.setFontSize(18f);
         btnEmpezar.setInsets(new Insets3f(10, 20, 10, 20));
         contenedorMenu.addChild(btnEmpezar);
+
+        // ⭐ NUEVO: Botón modo práctica
+        btnModoPractica = new Button("MODO PRÁCTICA");
+        btnModoPractica.addClickCommands(src -> iniciarModoPractica());
+        btnModoPractica.setColor(ColorRGBA.Cyan);
+        btnModoPractica.setFontSize(16f);
+        btnModoPractica.setInsets(new Insets3f(8, 15, 8, 15));
+        contenedorMenu.addChild(btnModoPractica);
         
         // Contador de canciones seleccionadas
         lblSeleccionCount = new Label("Canciones seleccionadas: 0");
@@ -165,9 +175,15 @@ public class MenuAppState extends BaseAppState {
      */
     private void abrirPantallaSeleccion() {
         System.out.println("\n>>> Abriendo ventana de selección...");
-        
+
         SwingUtilities.invokeLater(() -> {
             java.awt.Frame parentFrame = obtenerFramePadre();
+            // Asegurar que la lista esté actualizada antes de mostrar la ventana
+            try {
+                playlistManager.cargarPlaylist();
+            } catch (Exception e) {
+                System.err.println("Error recargando playlist: " + e.getMessage());
+            }
             
             // ⭐ NUEVO: Usar ResultadoSeleccion en vez de Set
             VentanaSeleccionCanciones.ResultadoSeleccion resultado =
@@ -275,7 +291,7 @@ public class MenuAppState extends BaseAppState {
      */
     public void abrirCarpetaCanciones() {
         try {
-            String rutaCarpeta = "assets/canciones/";
+            String rutaCarpeta = resolverRutaCanciones();
             File carpeta = new File(rutaCarpeta);
             
             if (!carpeta.exists()) {
@@ -303,6 +319,30 @@ public class MenuAppState extends BaseAppState {
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Resuelve una ruta ABSOLUTA hacia assets/canciones independientemente del cwd.
+     * Intenta partir desde la ubicación de las clases compiladas (target/classes)
+     * y sube al directorio del proyecto.
+     */
+    private String resolverRutaCanciones() {
+        try {
+            java.net.URI uri = com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI();
+            Path classesDir = Paths.get(uri);
+            // target/classes -> subir dos niveles para llegar al root del proyecto
+            Path proyectoDir = classesDir.getParent().getParent();
+            Path ruta = proyectoDir.resolve("assets").resolve("canciones");
+            return ruta.toAbsolutePath().toString();
+        } catch (Exception e) {
+            // Fallback: usar ruta relativa y convertir a absoluta
+            Path ruta = Paths.get("assets", "canciones").toAbsolutePath();
+            return ruta.toString();
         }
     }
     
@@ -386,6 +426,56 @@ public class MenuAppState extends BaseAppState {
                     
                     // ⭐ Llamar con la lista en el orden correcto (ya mezclada si aplica)
                     juego.startGameplay(listaFinal, resultados);
+                } else {
+                    System.out.println("\n✕ Análisis cancelado o falló");
+                }
+                return null;
+            });
+        });
+    }
+
+    /**
+     * ⭐ NUEVO: Inicia el modo práctica (sin barra de vida, se juega hasta terminar)
+     */
+    private void iniciarModoPractica() {
+        if (juego == null) return;
+
+        // Determinar canciones (respeta selección y modo aleatorio)
+        List<String> lista;
+        if (cancionesSeleccionadas.isEmpty()) {
+            lista = playlistManager.getCanciones();
+            if (modoAleatorioActivo && !lista.isEmpty()) {
+                lista = new ArrayList<>(lista);
+                Collections.shuffle(lista);
+            }
+        } else {
+            lista = new ArrayList<>(cancionesSeleccionadas);
+            if (modoAleatorioActivo) {
+                Collections.shuffle(lista);
+            }
+        }
+
+        if (lista.isEmpty()) {
+            System.err.println("ERROR: No hay canciones!");
+            lblInstrucciones.setText("ERROR: No hay canciones .wav\nAgrega archivos a assets/canciones/");
+            lblInstrucciones.setColor(ColorRGBA.Red);
+            return;
+        }
+
+        final List<String> listaFinal = new ArrayList<>(lista);
+        SwingUtilities.invokeLater(() -> {
+            java.awt.Frame parentFrame = obtenerFramePadre();
+            Map<String, ResultadoAnalisis> resultados =
+                VentanaCargaCanciones.mostrarYAnalizarConResultados(
+                    parentFrame,
+                    listaFinal,
+                    analizador
+                );
+
+            juego.enqueue(() -> {
+                if (!resultados.isEmpty()) {
+                    System.out.println("\n✓ Análisis completado - Iniciando Modo Práctica");
+                    juego.startGameplayPractica(listaFinal, resultados);
                 } else {
                     System.out.println("\n✕ Análisis cancelado o falló");
                 }

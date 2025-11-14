@@ -622,6 +622,13 @@ public class GameplayUI {
 
     // ==================== OCULTAR/MOSTRAR ====================
     
+    public void ocultarBarraVida() {
+        System.out.println("🔧 Ocultando barra de vida (modo práctica)");
+        if (barraVidaFondo != null) barraVidaFondo.removeFromParent();
+        if (barraVidaActual != null) barraVidaActual.removeFromParent();
+        if (txtVidaPorcentaje != null) txtVidaPorcentaje.removeFromParent();
+    }
+
     public void ocultarTemporalmente() {
         System.out.println("🔴 Ocultando UI del gameplay");
         

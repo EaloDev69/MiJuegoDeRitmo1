@@ -51,17 +51,8 @@ public class FlechasGenerator {
     Set<Float> beatsRapidosSet = new HashSet<>(resultado.beatsRapidos);
     Set<Float> beatsDoradsSet = new HashSet<>(resultado.beatsLentos);
     
-    // ⭐ Usar beatsLentos para flechas de LUNA
-    Set<Float> beatsLunaSet = new HashSet<>(resultado.beatsLentos);
-    
+    // ✅ ESPACIO no genera flechas: solo cuatro direcciones válidas
     for (float beatTime : resultado.beatsNormales) {
-        // ⭐ Verificar si es un beat de luna
-        if (beatsLunaSet.contains(beatTime) && random.nextFloat() < 0.3f) {
-            // 30% de probabilidad de ser luna si está en beatsLentos
-            flechas.add(new FlechaData(beatTime, Direccion.ESPACIO, TipoFlecha.LUNA));
-            continue;
-        }
-        
         TipoFlecha tipo = determinarTipoFlecha(beatTime, beatsRapidosSet, beatsDoradsSet);
         Direccion direccion = generarDireccionInteligente(tipo, beatTime);
         flechas.add(new FlechaData(beatTime, direccion, tipo));
@@ -109,7 +100,10 @@ public class FlechasGenerator {
      * Genera una dirección inteligente evitando patrones monótonos
      */
     private Direccion generarDireccionInteligente(TipoFlecha tipo, float beatTime) {
-        Direccion[] direcciones = Direccion.values();
+        // Solo las cuatro direcciones de flechas, sin ESPACIO
+        Direccion[] direcciones = new Direccion[] {
+            Direccion.ARRIBA, Direccion.ABAJO, Direccion.IZQUIERDA, Direccion.DERECHA
+        };
         
         // Para flechas doradas, preferir direcciones verticales (más visibles)
         if (tipo == TipoFlecha.DORADA && random.nextFloat() < 0.6f) {

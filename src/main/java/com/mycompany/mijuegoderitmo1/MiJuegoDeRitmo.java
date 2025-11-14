@@ -140,6 +140,27 @@ public class MiJuegoDeRitmo extends SimpleApplication {
     }
 
     /**
+     * Inicia el gameplay en modo práctica (sin barra de vida ni game over por vida)
+     */
+    public void startGameplayPractica(List<String> cancionesSeleccionadas,
+                                      Map<String, ResultadoAnalisis> resultados) {
+        System.out.println("\n=== INICIANDO MODO PRÁCTICA ===");
+        System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
+
+        // Limpiar el menú
+        if (menuAppStates != null) {
+            System.out.println("  - Desvinculando menú...");
+            stateManager.detach(menuAppStates);
+        }
+
+        // Crear GameplayAppState con modo práctica activado
+        gameplayAppState = new GameplayAppState(cancionesSeleccionadas, resultados, true);
+        stateManager.attach(gameplayAppState);
+
+        System.out.println("✓ Modo práctica iniciado correctamente");
+    }
+
+    /**
      * Vuelve al menú principal
      * Llamado desde GameplayAppState al terminar o salir
      */
