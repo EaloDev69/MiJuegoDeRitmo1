@@ -2,62 +2,62 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
+
 package Modelo;
 
 import com.jme3.math.Vector3f;
 import com.jme3.math.ColorRGBA;
 
 /**
- * Direcciones de las flechas - SISTEMA DE CONVERGENCIA CENTRAL CON ZONAS DE IMPACTO
+ * Direcciones de las flechas - SISTEMA DE CONVERGENCIA A LOS LADOS DEL OBJETO CENTRAL
  * 
- * ✅ TODAS las flechas convergen al CENTRO de la pantalla
- * ✅ Spawn desde ZONAS DE IMPACTO visibles en los bordes
- * ✅ Cada flecha spawn desde su lado correspondiente:
- *    - ARRIBA: spawn desde arriba, baja al centro
- *    - ABAJO: spawn desde abajo, sube al centro
- *    - IZQUIERDA: spawn desde izquierda, va al centro
- *    - DERECHA: spawn desde derecha, va al centro
- *    - ESPACIO: spawn aleatorio, va al centro
+ * ✅ Cada flecha viene desde el BORDE de la pantalla hacia un LADO del objeto central:
+ *    - IZQUIERDA: desde borde izquierdo → centro del lado izquierdo del cuadrado
+ *    - DERECHA: desde borde derecho → centro del lado derecho del cuadrado
+ *    - ARRIBA: desde borde superior → centro del lado superior del cuadrado
+ *    - ABAJO: desde borde inferior → centro del lado inferior del cuadrado
+ *    - ESPACIO: ⚠️ NO USA FLECHAS - Mecánica especial de titilación del objeto central
+ *               El objeto titila 2 veces (0.5s entre cada titilación) para avisar
+ *               que el jugador debe presionar ESPACIO siguiendo el ritmo
  * 
  * @author CamiLaNekoUwU_Gamer
  */
 public enum Direccion {
     
-    // ⭐ CONFIGURACIÓN DE FLECHAS CON RUTAS CORREGIDAS
     IZQUIERDA(
-        new Vector3f(-1, 0, 0),  // Vector dirección: hacia la derecha (al centro)
+        new Vector3f(-1, 0, 0),
         ColorRGBA.Red, 
         "assets/Texture/flecha_roja.png", 
-        270f,  // Rotación para apuntar a la derecha
+        270f,
         "a"
     ),
     
     ABAJO(
-        new Vector3f(0, 1, 0),   // Vector dirección: hacia arriba (al centro)
+        new Vector3f(0, 1, 0),
         ColorRGBA.Blue, 
         "assets/Texture/flecha_azul.png", 
-        180f,  // Rotación para apuntar arriba
+        180f,
         "abajo"
     ),
     
     ARRIBA(
-        new Vector3f(0, -1, 0),  // Vector dirección: hacia abajo (al centro)
+        new Vector3f(0, -1, 0),
         ColorRGBA.Blue, 
         "assets/Texture/flecha_azul.png", 
-        0f,    // Sin rotación (apunta abajo naturalmente)
+        0f,
         "w"
     ),
     
     DERECHA(
-        new Vector3f(1, 0, 0),   // Vector dirección: hacia la izquierda (al centro)
+        new Vector3f(1, 0, 0),
         ColorRGBA.Red, 
         "assets/Texture/flecha_roja.png", 
-        90f,   // Rotación para apuntar a la izquierda
+        90f,
         "derecha"
     ),
     
     ESPACIO(
-        new Vector3f(0, 0, 0),   // Sin dirección específica (spawn aleatorio)
+        new Vector3f(0, 0, 0),
         ColorRGBA.White, 
         "assets/Texture/flecha_especial_luna.png", 
         0f, 
@@ -69,10 +69,6 @@ public enum Direccion {
     private final String texturePath;
     private final float rotacion;
     private final String tecla;
-    
-    // ⭐ NUEVO: Margen ampliado para mejor tiempo de reacción
-    private static final float MARGEN_ZONA = 150f; // Donde están las zonas visuales
-    private static final float DISTANCIA_SPAWN = 1500f; // ⭐ MUY LEJOS - Fuera de pantalla visible
 
     Direccion(Vector3f dir, ColorRGBA color, String texturePath, float rotacion, String tecla) {
         this.direccion = dir;
@@ -117,33 +113,65 @@ public enum Direccion {
         }
     }
 
-    // ==================== 🎯 TARGET CENTRAL ====================
+    // ==================== 🎯 TARGET EN LOS LADOS DEL OBJETO CENTRAL ====================
     
     /**
-     * ⭐ CRÍTICO: TODAS las flechas van al MISMO punto central
-     * Este es el objetivo donde el jugador debe presionar la tecla
+     * ⭐ CORREGIDO: Cada flecha va al CENTRO de un LADO del objeto central
+     * - IZQUIERDA: va al centro del lado izquierdo del cuadrado
+     * - DERECHA: va al centro del lado derecho del cuadrado
+     * - ARRIBA: va al centro del lado superior del cuadrado
+     * - ABAJO: va al centro del lado inferior del cuadrado
+     * - ESPACIO: NO USA FLECHAS - El objeto central titila como advertencia
      * 
      * @param anchoVentana Ancho de la ventana en píxeles
      * @param altoVentana Alto de la ventana en píxeles
-     * @return Posición del centro de la pantalla
+     * @return Posición del lado correspondiente del objeto central
      */
     public Vector3f getPosicionTarget(float anchoVentana, float altoVentana) {
         float centroX = anchoVentana / 2;
         float centroY = altoVentana / 2;
         
-        // ⭐ TODAS convergen al MISMO punto central
-        return new Vector3f(centroX, centroY, 0);
+        // Distancia desde el centro hasta el borde del objeto central
+        // Objeto central tiene tamaño 150px, entonces radio = 75px
+        float offsetTarget = 75f;
+        
+        switch(this) {
+            case IZQUIERDA:
+                // Target en el centro del lado IZQUIERDO del cuadrado
+                return new Vector3f(centroX - offsetTarget, centroY, 0);
+                
+            case DERECHA:
+                // Target en el centro del lado DERECHO del cuadrado
+                return new Vector3f(centroX + offsetTarget, centroY, 0);
+                
+            case ARRIBA:
+                // Target en el centro del lado SUPERIOR del cuadrado
+                return new Vector3f(centroX, centroY + offsetTarget, 0);
+                
+            case ABAJO:
+                // Target en el centro del lado INFERIOR del cuadrado
+                return new Vector3f(centroX, centroY - offsetTarget, 0);
+                
+            case ESPACIO:
+                // ⚠️ ESPACIO NO USA FLECHAS - retorna centro para compatibilidad
+                // pero la mecánica real es: objeto central titila 2 veces
+                return new Vector3f(centroX, centroY, 0);
+                
+            default:
+                return new Vector3f(centroX, centroY, 0);
+        }
     }
 
-    // ==================== 📍 SPAWN DESDE LAS ZONAS DE IMPACTO ====================
+    // ==================== 📍 SPAWN DESDE LOS BORDES DE LA PANTALLA ====================
     
     /**
-     * ⭐ MEJORADO: Spawn más alejado para mejor tiempo de reacción
-     * Las flechas aparecen desde los bordes, más allá de las zonas de impacto
+     * ⭐ CORREGIDO: Spawn desde el BORDE de la pantalla hacia el objeto central
+     * Todas las flechas vienen desde fuera de la ventana
+     * ⚠️ ESPACIO NO USA FLECHAS - el objeto central titila como advertencia
      * 
      * @param anchoVentana Ancho de la ventana en píxeles
      * @param altoVentana Alto de la ventana en píxeles
-     * @return Posición inicial de spawn alejada del centro
+     * @return Posición inicial de spawn en el borde de la pantalla
      */
     public Vector3f getPosicionSpawn(float anchoVentana, float altoVentana) {
         float centroX = anchoVentana / 2;
@@ -151,150 +179,91 @@ public enum Direccion {
         
         switch(this) {
             case IZQUIERDA:
-                // Spawn a la IZQUIERDA, fuera de pantalla
-                return new Vector3f(centroX - DISTANCIA_SPAWN, centroY, 0);
+                // Spawn en el BORDE IZQUIERDO de la pantalla, mismo Y que el centro
+                return new Vector3f(0, centroY, 0);
                 
             case DERECHA:
-                // Spawn a la DERECHA, fuera de pantalla
-                return new Vector3f(centroX + DISTANCIA_SPAWN, centroY, 0);
+                // Spawn en el BORDE DERECHO de la pantalla, mismo Y que el centro
+                return new Vector3f(anchoVentana, centroY, 0);
                 
             case ARRIBA:
-                // Spawn ARRIBA, fuera de pantalla
-                return new Vector3f(centroX, centroY + DISTANCIA_SPAWN, 0);
+                // Spawn en el BORDE SUPERIOR de la pantalla, mismo X que el centro
+                return new Vector3f(centroX, altoVentana, 0);
                 
             case ABAJO:
-                // Spawn ABAJO, fuera de pantalla
-                return new Vector3f(centroX, centroY - DISTANCIA_SPAWN, 0);
+                // Spawn en el BORDE INFERIOR de la pantalla, mismo X que el centro
+                return new Vector3f(centroX, 0, 0);
                 
             case ESPACIO:
-                // Flechas de espacio pueden venir de cualquier lado
-                return getSpawnAleatorioParaEspacio(centroX, centroY, anchoVentana, altoVentana);
+                // ⚠️ ESPACIO NO USA FLECHAS - retorna posición fuera de pantalla
+                // para compatibilidad, pero la mecánica real es diferente:
+                // El objeto central titila 2 veces con 0.5s de diferencia
+                return new Vector3f(-1000, -1000, 0); // Fuera de vista
                 
             default:
-                return new Vector3f(centroX - DISTANCIA_SPAWN, centroY, 0);
-        }
-    }
-
-    /**
-     * ⭐ MEJORADO: Spawn aleatorio para ESPACIO con mayor distancia
-     */
-    private Vector3f getSpawnAleatorioParaEspacio(float centroX, float centroY, float ancho, float alto) {
-        int lado = (int)(Math.random() * 4); // 0-3
-        
-        switch(lado) {
-            case 0: // Desde arriba
-                return new Vector3f(centroX, centroY + DISTANCIA_SPAWN, 0);
-            case 1: // Desde abajo
-                return new Vector3f(centroX, centroY - DISTANCIA_SPAWN, 0);
-            case 2: // Desde izquierda
-                return new Vector3f(centroX - DISTANCIA_SPAWN, centroY, 0);
-            case 3: // Desde derecha
-                return new Vector3f(centroX + DISTANCIA_SPAWN, centroY, 0);
-            default:
-                return new Vector3f(centroX, centroY + DISTANCIA_SPAWN, 0);
+                return new Vector3f(0, centroY, 0);
         }
     }
 
     // ==================== 🎨 MÉTODOS DE UTILIDAD VISUAL ====================
 
-    /**
-     * Calcula la rotación necesaria para que la flecha apunte hacia el centro
-     * desde su posición actual
-     * 
-     * @param posicionActual Posición actual de la flecha
-     * @param posicionTarget Posición del centro (target)
-     * @return Ángulo en grados para rotar la flecha
-     */
     public float calcularRotacionHaciaCentro(Vector3f posicionActual, Vector3f posicionTarget) {
-        // Vector desde la flecha hacia el centro
         Vector3f direccionAlCentro = posicionTarget.subtract(posicionActual).normalize();
-        
-        // Calcular ángulo en radianes
         float anguloRadianes = (float) Math.atan2(direccionAlCentro.y, direccionAlCentro.x);
-        
-        // Convertir a grados y ajustar
         float anguloGrados = (float) Math.toDegrees(anguloRadianes);
-        
-        // Ajuste para que la flecha apunte correctamente
-        // (depende de cómo esté orientado el sprite original)
         return anguloGrados - 90f;
     }
 
     // ==================== 📊 MÉTODOS DE CLASIFICACIÓN ====================
 
-    /**
-     * Verifica si esta dirección es especial (ESPACIO)
-     */
     public boolean esEspecial() {
         return this == ESPACIO;
     }
 
-    /**
-     * Genera una dirección aleatoria (excluyendo ESPACIO)
-     */
     public static Direccion getAleatoria() {
         Direccion[] valores = {ARRIBA, ABAJO, IZQUIERDA, DERECHA};
         int index = (int)(Math.random() * valores.length);
         return valores[index];
     }
 
-    /**
-     * Genera una dirección aleatoria INCLUYENDO ESPACIO
-     */
     public static Direccion getAleatoriaConEspacio() {
         Direccion[] valores = {ARRIBA, ABAJO, IZQUIERDA, DERECHA, ESPACIO};
         int index = (int)(Math.random() * valores.length);
         return valores[index];
     }
 
-    /**
-     * Verifica si la dirección es vertical (arriba/abajo)
-     */
     public boolean esVertical() {
         return this == ARRIBA || this == ABAJO;
     }
 
-    /**
-     * Verifica si la dirección es horizontal (izquierda/derecha)
-     */
     public boolean esHorizontal() {
         return this == IZQUIERDA || this == DERECHA;
     }
 
     // ==================== 🔧 DEBUG Y UTILIDADES ====================
 
-    /**
-     * Representación en texto legible
-     */
     @Override
     public String toString() {
         switch(this) {
             case ARRIBA: return "↑ ARRIBA (W)";
-            case ABAJO: return "↓ ABAJO (S/↓)";
-            case IZQUIERDA: return "← IZQUIERDA (A/←)";
-            case DERECHA: return "→ DERECHA (D/→)";
+            case ABAJO: return "↓ ABAJO (↓)";
+            case IZQUIERDA: return "← IZQUIERDA (A)";
+            case DERECHA: return "→ DERECHA (→)";
             case ESPACIO: return "☾ LUNA (ESPACIO)";
             default: return super.toString();
         }
     }
 
-    /**
-     * Información detallada para debugging
-     */
     public String getInfoDetallada() {
         return String.format(
-            "Direccion[%s, tecla=%s, rotacion=%.1f°, color=%s, zona=%.0fpx]",
+            "Direccion[%s, tecla=%s, rotacion=%.1f°, color=%s]",
             this.name(),
             tecla,
             rotacion,
-            color.toString(),
-            MARGEN_ZONA
+            color.toString()
         );
     }
 
-    /**
-     * Obtiene el símbolo Unicode de la flecha
-     */
     public String getSimbolo() {
         switch(this) {
             case ARRIBA: return "↑";
@@ -306,15 +275,12 @@ public enum Direccion {
         }
     }
 
-    /**
-     * Obtiene el nombre de la tecla en formato legible
-     */
     public String getNombreTecla() {
         switch(this) {
-            case ARRIBA: return "W/↑";
-            case ABAJO: return "S/↓";
-            case IZQUIERDA: return "A/←";
-            case DERECHA: return "D/→";
+            case ARRIBA: return "W";
+            case ABAJO: return "↓";
+            case IZQUIERDA: return "A";
+            case DERECHA: return "→";
             case ESPACIO: return "ESPACIO";
             default: return tecla;
         }

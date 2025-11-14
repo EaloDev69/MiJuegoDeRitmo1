@@ -6,95 +6,100 @@
 package UI;
 
 import Modelo.Direccion;
-import Modelo.FlechaProceduralGenerator;
 import com.jme3.app.SimpleApplication;
+import com.jme3.font.BitmapFont;
+import com.jme3.font.BitmapText;
 import com.jme3.material.Material;
 import com.jme3.material.RenderState.BlendMode;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Texture;
-import com.jme3.font.BitmapFont;
-import com.jme3.font.BitmapText;
-import com.jme3.ui.Picture;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * GameplayUI - Sistema de UI mejorado con:
- * ✅ Zonas de impacto visibles en los bordes
- * ✅ Objeto central reactivo con pulso rítmico
- * ✅ Feedback visual mejorado
- * ✅ Sistema de brillo sincronizado con la música
+ * GameplayUI - SISTEMA CON OBJETO CENTRAL BRILLANTE
+ * 
+ * ✅ Objeto central con 4 indicadores en sus lados
+ * ✅ Sistema de brillo para mecánica ESPACIO
+ * ✅ Efectos visuales mejorados
+ * 
+ * @author CamiLaNekoUwU_Gamer
  */
 public class GameplayUI {
+
+    private final SimpleApplication app;
+    private final Node guiNode;
+    private final BitmapFont font;
+    private final float ancho;
+    private final float alto;
     
-    private SimpleApplication app;
     private Node uiRootNode;
-    private Node guiNode;
     
-    // Dimensiones
-    private float ancho;
-    private float alto;
-    
-    // ==================== ZONAS DE IMPACTO (NUEVAS) ====================
-    private Geometry zonaArriba;
-    private Geometry zonaAbajo;
-    private Geometry zonaIzquierda;
-    private Geometry zonaDerecha;
-    private Geometry zonaEspacio; // Centro
-    
-    // ==================== OBJETO CENTRAL MEJORADO ====================
+    // ==================== OBJETO CENTRAL ====================
     private Geometry objetoCentral;
     private Material materialObjetoCentral;
-    private ColorRGBA colorBaseObjetoCentral = new ColorRGBA(1f, 1f, 1f, 0.9f);
-    
-    // Sistema de pulso rítmico
-    private float tiempoUltimoBeat = 0f;
-    private float intervaloBPM = 0.5f; // Se actualizará con el BPM real
-    private boolean pulsoActivado = false;
-    private float tiempoPulso = 0f;
-    private static final float VELOCIDAD_PULSO = 2f;
-    
-    // Sistema de brillo por ESPACIO
-    private boolean brillandoEspacio = false;
     private float tiempoBrilloEspacio = 0f;
+    private boolean brillandoEspacio = false;
+    private ColorRGBA colorBaseObjetoCentral;
     
-    // ==================== ELEMENTOS UI EXISTENTES ====================
-    private Geometry barraVida;
+    // Efecto de pulso constante
+    private float tiempoPulso = 0f;
+    private static final float VELOCIDAD_PULSO = 2.0f;
+    
+    // ==================== INDICADORES EN LOS LADOS ====================
+    private Node nodoIndicadoresDireccionales;
+    
+    // ==================== UI TRADICIONAL ====================
     private Geometry barraVidaFondo;
-    private Material materialVida;
+    private Geometry barraVidaActual;
+    private BitmapText txtVidaPorcentaje;
+    private BitmapText txtScore;
+    private BitmapText txtCombo;
+    private BitmapText txtCancion;
     
-    private BitmapText textoScore;
-    private BitmapText textoCombo;
-    private BitmapText textoFeedback;
-    private BitmapText textoCancion;
+    private int vidaMaxima = 100;
+    private int vidaActual = 100;
     
-    private Picture botonPausa;
+    // Feedback temporal
+    private List<MensajeFeedback> mensajesFeedback;
+    private static final float DURACION_FEEDBACK = 1.0f;
     
-    // Control de feedback
-    private float tiempoFeedback = 0f;
-    private boolean mostrandoFeedback = false;
+    // Botón de pausa
+    private Geometry btnPausa;
+    private BitmapText txtPausa;
     
-    // ==================== CONSTRUCTOR ====================
-    
+    // Colores barra de vida
+    private static final ColorRGBA COLOR_VIDA_ALTA = new ColorRGBA(0.2f, 1f, 0.3f, 1f);
+    private static final ColorRGBA COLOR_VIDA_MEDIA = new ColorRGBA(1f, 0.8f, 0.2f, 1f);
+    private static final ColorRGBA COLOR_VIDA_BAJA = new ColorRGBA(1f, 0.3f, 0.2f, 1f);
+
     public GameplayUI(SimpleApplication app) {
         this.app = app;
         this.guiNode = app.getGuiNode();
+        this.font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
         this.ancho = app.getCamera().getWidth();
         this.alto = app.getCamera().getHeight();
+        this.mensajesFeedback = new ArrayList<>();
+        
+        System.out.println("\n🎨 Inicializando GameplayUI con objeto central...");
+        System.out.println("  Dimensiones: " + ancho + "x" + alto);
         
         inicializarUI();
+        verificarVisibilidad();
+        
+        System.out.println("✓ GameplayUI inicializado correctamente\n");
     }
-    
-    // ==================== INICIALIZACIÓN ====================
-    
+
     private void inicializarUI() {
         uiRootNode = new Node("GameplayUIRoot");
         
         crearObjetoCentral();
-        crearZonasDeImpacto(); // ⭐ NUEVO
-        
+        crearIndicadoresDireccionales();
         crearBarraVida();
         crearTextoScore();
         crearTextoCombo();
@@ -102,226 +107,81 @@ public class GameplayUI {
         crearBotonPausa();
         
         guiNode.attachChild(uiRootNode);
-        
-        System.out.println("✓ GameplayUI inicializado");
+        System.out.println("  ✓ GameplayUIRoot añadido al GuiNode");
     }
-    
-    // ==================== OBJETO CENTRAL MEJORADO ====================
+
+    // ==================== OBJETO CENTRAL ====================
     
     private void crearObjetoCentral() {
-        float tamano = 200f;
+        System.out.println("\n  ⭐ Creando objeto central...");
         
-        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", colorBaseObjetoCentral);
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
-        objetoCentral.setMaterial(mat);
-        
-        float posX = (ancho / 2f) - (tamano / 2f);
-        float posY = (alto / 2f) - (tamano / 2f);
-        objetoCentral.setLocalTranslation(posX, posY, 1f);
-        
-        materialObjetoCentral = mat;
-        uiRootNode.attachChild(objetoCentral);
-    }
-    
-    // ==================== ZONAS DE IMPACTO (NUEVO SISTEMA) ====================
-    
-    /**
-     * ⭐ INVISIBLES: Zonas de impacto para lógica de hit solamente
-     * Están en el centro pero NO se ven - solo el objeto central es visible
-     */
-    private void crearZonasDeImpacto() {
-        System.out.println("\n🎯 Creando zonas de impacto (invisibles)...");
-        
-        float tamanoZona = 80f;
-        float distanciaDelCentro = 120f;
-        
+        float tamano = 150f;
         float centroX = ancho / 2;
         float centroY = alto / 2;
         
-        // Obtener generador procedural
-        FlechaProceduralGenerator generator = new FlechaProceduralGenerator(app.getAssetManager());
+        String rutaTextura = "assets/Texture/Protagonista/astronautaPoseDefault.png";
         
-        // === ZONA ARRIBA (INVISIBLE) ===
-        zonaArriba = crearZonaInvisible(
-            Direccion.ARRIBA,
-            centroX - tamanoZona/2,
-            centroY + distanciaDelCentro - tamanoZona/2,
-            tamanoZona
-        );
-        
-        // === ZONA ABAJO (INVISIBLE) ===
-        zonaAbajo = crearZonaInvisible(
-            Direccion.ABAJO,
-            centroX - tamanoZona/2,
-            centroY - distanciaDelCentro - tamanoZona/2,
-            tamanoZona
-        );
-        
-        // === ZONA IZQUIERDA (INVISIBLE) ===
-        zonaIzquierda = crearZonaInvisible(
-            Direccion.IZQUIERDA,
-            centroX - distanciaDelCentro - tamanoZona/2,
-            centroY - tamanoZona/2,
-            tamanoZona
-        );
-        
-        // === ZONA DERECHA (INVISIBLE) ===
-        zonaDerecha = crearZonaInvisible(
-            Direccion.DERECHA,
-            centroX + distanciaDelCentro - tamanoZona/2,
-            centroY - tamanoZona/2,
-            tamanoZona
-        );
-        
-        System.out.println("✓ Zonas de impacto creadas (invisibles, solo lógica)");
-    }
-    
-    /**
-     * ⭐ NUEVO: Crea zona invisible para lógica de hit
-     */
-    private Geometry crearZonaInvisible(Direccion direccion, float x, float y, float tamano) {
-        // Crear material completamente transparente
-        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", new ColorRGBA(0f, 0f, 0f, 0f)); // Totalmente transparente
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        // Crear geometría
-        Quad quad = new Quad(tamano, tamano);
-        Geometry zona = new Geometry("Zona_" + direccion, quad);
-        zona.setMaterial(mat);
-        zona.setLocalTranslation(x, y, 0.1f); // Z muy bajo, debajo del objeto central
-        
-        uiRootNode.attachChild(zona);
-        
-        return zona;
-    }
-    
-    /**
-     * ⭐ NUEVO: Crea una zona de impacto individual (outline de flecha)
-     */
-    private Geometry crearZonaImpacto(FlechaProceduralGenerator generator, 
-                                      Direccion direccion, 
-                                      float x, float y, float tamano) {
-        
-        // Colores para el outline (semi-transparente)
-        ColorRGBA colorBorde = generator.obtenerBordePorDireccion(direccion);
-        ColorRGBA colorFondo = new ColorRGBA(0.1f, 0.1f, 0.1f, 0.3f); // Oscuro semi-transparente
-        
-        // Crear textura del outline
-        Texture textura = generator.crearTexturaZonaFlecha(direccion, colorBorde, colorFondo);
-        
-        // Crear material
-        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setTexture("ColorMap", textura);
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        // Crear geometría
-        Quad quad = new Quad(tamano, tamano);
-        Geometry zona = new Geometry("Zona_" + direccion, quad);
-        zona.setMaterial(mat);
-        zona.setLocalTranslation(x, y, 0.5f); // Z más bajo que las flechas
-        
-        uiRootNode.attachChild(zona);
-        
-        return zona;
-    }
-    
-    /**
-     * ⭐ NUEVO: Crea la zona central (para ESPACIO)
-     */
-    private Geometry crearZonaCentro(FlechaProceduralGenerator generator,
-                                      float x, float y, float tamano) {
-        
-        ColorRGBA colorBorde = new ColorRGBA(0.8f, 0.6f, 1.0f, 1.0f); // Violeta
-        ColorRGBA colorFondo = new ColorRGBA(0.3f, 0.1f, 0.4f, 0.5f); // Violeta oscuro semi-transparente
-        
-        Texture textura = generator.crearTexturaZonaEspacio(colorBorde, colorFondo);
-        
-        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setTexture("ColorMap", textura);
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        Quad quad = new Quad(tamano, tamano);
-        Geometry zona = new Geometry("Zona_Centro", quad);
-        zona.setMaterial(mat);
-        zona.setLocalTranslation(x, y, 0.5f);
-        
-        uiRootNode.attachChild(zona);
-        
-        return zona;
-    }
-    
-    /**
-     * ⭐ MEJORADO: Hace brillar una zona cuando se presiona la tecla correcta
-     * Para ESPACIO, brilla el objeto central directamente
-     */
-    public void activarZona(Direccion direccion) {
-        Geometry zona = null;
-        
-        switch(direccion) {
-            case ARRIBA: zona = zonaArriba; break;
-            case ABAJO: zona = zonaAbajo; break;
-            case IZQUIERDA: zona = zonaIzquierda; break;
-            case DERECHA: zona = zonaDerecha; break;
-            case ESPACIO: 
-                // Para ESPACIO, brillar el objeto central directamente
-                activarBrilloEspacio();
-                return;
-        }
-        
-        if (zona != null) {
-            final Geometry zonaFinal = zona;
-            final Material mat = zona.getMaterial();
+        try {
+            System.out.println("  → Cargando textura: " + rutaTextura);
             
-            // Guardar color original
-            ColorRGBA colorOriginal = mat.getParamValue("Color");
-            if (colorOriginal == null) {
-                colorOriginal = ColorRGBA.White;
-            }
-            final ColorRGBA colorFinal = colorOriginal.clone();
+            Texture texture = app.getAssetManager().loadTexture(rutaTextura);
             
-            // Flash brillante
-            mat.setColor("Color", ColorRGBA.White.mult(2f));
+            materialObjetoCentral = new Material(app.getAssetManager(),
+                "Common/MatDefs/Misc/Unshaded.j3md");
+            materialObjetoCentral.setTexture("ColorMap", texture);
+            materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
             
-            // Restaurar después de 0.15s
-            new Thread(() -> {
-                try {
-                    Thread.sleep(150);
-                    app.enqueue(() -> {
-                        mat.setColor("Color", colorFinal);
-                        return null;
-                    });
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }).start();
+            colorBaseObjetoCentral = new ColorRGBA(1.1f, 1.1f, 1.1f, 1.0f);
+            materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+            
+            objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
+            objetoCentral.setMaterial(materialObjetoCentral);
+            objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
+            
+            uiRootNode.attachChild(objetoCentral);
+            
+            System.out.println("  ✓ Objeto central creado exitosamente");
+            
+        } catch (Exception e) {
+            System.err.println("  ❌ Error cargando textura: " + e.getMessage());
+            System.err.println("  ⚠ Creando objeto central de respaldo...");
+            crearObjetoCentralFallback(centroX, centroY, tamano);
         }
     }
-    
-    // ==================== SISTEMA DE PULSO RÍTMICO ====================
-    
-    /**
-     * ⭐ NUEVO: Configura el pulso según el BPM de la canción
-     */
-    public void configurarPulsoBPM(float bpm) {
-        if (bpm > 0) {
-            this.intervaloBPM = 60.0f / bpm; // Convertir BPM a intervalo en segundos
-            System.out.println("🎵 Pulso configurado: " + bpm + " BPM (" + 
-                             String.format("%.2f", intervaloBPM) + "s por beat)");
-        }
+
+    private void crearObjetoCentralFallback(float centroX, float centroY, float tamano) {
+        materialObjetoCentral = new Material(app.getAssetManager(),
+            "Common/MatDefs/Misc/Unshaded.j3md");
+        
+        colorBaseObjetoCentral = new ColorRGBA(1.2f, 1.2f, 1.4f, 0.9f);
+        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+        materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
+        objetoCentral.setMaterial(materialObjetoCentral);
+        objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
+        
+        uiRootNode.attachChild(objetoCentral);
+        
+        System.out.println("  ✓ Objeto central de respaldo creado (cuadrado brillante)");
     }
+
+    // ==================== SISTEMA DE BRILLO ====================
     
-    /**
-     * ⭐ NUEVO: Actualiza el brillo del objeto central
-     * Ahora incluye pulso al ritmo de la música
-     */
-    public void actualizarBrilloObjetoCentral(float tpf, float tiempoCancion) {
+    public void activarBrilloEspacio() {
+        brillandoEspacio = true;
+        tiempoBrilloEspacio = 0f;
+        
+        if (materialObjetoCentral != null) {
+            materialObjetoCentral.setColor("Color", new ColorRGBA(3.0f, 3.0f, 4.0f, 1.0f));
+        }
+        
+        System.out.println("✨ Objeto central BRILLANDO - Mecánica ESPACIO activada");
+    }
+
+    public void actualizarBrilloObjetoCentral(float tpf) {
         if (objetoCentral == null || materialObjetoCentral == null) return;
         
-        // ========== EFECTO DE BRILLO DE ESPACIO (prioritario) ==========
         if (brillandoEspacio) {
             tiempoBrilloEspacio += tpf;
             float duracionBrillo = 0.4f;
@@ -339,277 +199,519 @@ public class GameplayUI {
                 brillandoEspacio = false;
                 materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
             }
-        }
-        // ========== PULSO RÍTMICO SINCRONIZADO CON LA MÚSICA ==========
-        else {
-            // Detectar beats
-            float tiempoDesdeUltimoBeat = tiempoCancion - tiempoUltimoBeat;
-            
-            if (tiempoDesdeUltimoBeat >= intervaloBPM) {
-                tiempoUltimoBeat = tiempoCancion;
-                pulsoActivado = true;
-                tiempoPulso = 0f;
-            }
-            
-            // Aplicar efecto de pulso
-            if (pulsoActivado) {
-                tiempoPulso += tpf * 4f; // Velocidad del pulso
-                
-                if (tiempoPulso < 1.0f) {
-                    // Pulso hacia afuera
-                    float intensidad = 1.0f + (0.5f * FastMath.sin(tiempoPulso * FastMath.PI));
-                    ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidad);
-                    materialObjetoCentral.setColor("Color", colorPulso);
-                    
-                    // Escalar ligeramente el objeto
-                    float escala = 1.0f + (0.1f * FastMath.sin(tiempoPulso * FastMath.PI));
-                    objetoCentral.setLocalScale(escala);
-                } else {
-                    // Restaurar
-                    pulsoActivado = false;
-                    materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
-                    objetoCentral.setLocalScale(1.0f);
-                }
-            }
-            // Pulso suave constante cuando no hay beat
-            else {
-                tiempoPulso += tpf * VELOCIDAD_PULSO;
-                float intensidadPulso = 1.0f + 0.05f * FastMath.sin(tiempoPulso);
-                ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
-                materialObjetoCentral.setColor("Color", colorPulso);
-            }
+        } else {
+            tiempoPulso += tpf * VELOCIDAD_PULSO;
+            float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
+            ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
+            materialObjetoCentral.setColor("Color", colorPulso);
         }
     }
-    
-    /**
-     * ⭐ MEJORADO: Activa brillo más intenso al golpear flechas
-     */
-    public void activarBrilloHit(ColorRGBA colorFlecha, boolean perfectHit) {
+
+    public void activarBrilloHit(ColorRGBA colorFlecha) {
         if (materialObjetoCentral == null) return;
         
-        float intensidad = perfectHit ? 2.0f : 1.5f;
-        ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha.mult(intensidad));
+        ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha).mult(0.7f);
         colorMezclado.a = 1.0f;
         
         materialObjetoCentral.setColor("Color", colorMezclado);
         
-        // Efecto de escala
-        if (perfectHit) {
-            objetoCentral.setLocalScale(1.2f);
+        System.out.println("💫 Hit registrado - Brillo de color");
+    }
+
+    // ==================== INDICADORES DIRECCIONALES EN LOS LADOS ====================
+    
+    private void crearIndicadoresDireccionales() {
+        System.out.println("\n  📍 Creando indicadores direccionales en los lados del objeto central...");
+        
+        nodoIndicadoresDireccionales = new Node("IndicadoresDireccionales");
+        
+        float centroX = ancho / 2f;
+        float centroY = alto / 2f;
+        
+        // Tamaño del objeto central y los indicadores
+        float tamanoObjetoCentral = 150f;
+        float radioObjeto = tamanoObjetoCentral / 2f; // 75px
+        float tamanoIndicador = 40f;
+        
+        // ⭐ IZQUIERDA - En el lado izquierdo del cuadrado
+        crearIndicadorEnLado("←", 
+            centroX - radioObjeto, 
+            centroY, 
+            tamanoIndicador, 
+            new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
+        
+        // ⭐ DERECHA - En el lado derecho del cuadrado
+        crearIndicadorEnLado("→", 
+            centroX + radioObjeto, 
+            centroY, 
+            tamanoIndicador, 
+            new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
+        
+        // ⭐ ARRIBA - En el lado superior del cuadrado
+        crearIndicadorEnLado("↑", 
+            centroX, 
+            centroY + radioObjeto, 
+            tamanoIndicador, 
+            new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
+        
+        // ⭐ ABAJO - En el lado inferior del cuadrado
+        crearIndicadorEnLado("↓", 
+            centroX, 
+            centroY - radioObjeto, 
+            tamanoIndicador, 
+            new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
+        
+        uiRootNode.attachChild(nodoIndicadoresDireccionales);
+        System.out.println("  ✓ Indicadores direccionales creados en los 4 lados");
+    }
+
+    private void crearIndicadorEnLado(String simbolo, float x, float y, 
+                                      float tamano, ColorRGBA color) {
+        // Crear cuadro del indicador
+        Quad quad = new Quad(tamano, tamano);
+        Geometry indicador = new Geometry("Indicador-" + simbolo, quad);
+        
+        Material mat = new Material(app.getAssetManager(), 
+            "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", color);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        indicador.setMaterial(mat);
+        // Centrar el indicador en las coordenadas dadas
+        indicador.setLocalTranslation(x - tamano/2, y - tamano/2, 0.2f);
+        
+        nodoIndicadoresDireccionales.attachChild(indicador);
+        
+        // Añadir símbolo de texto
+        BitmapText txtSimbolo = new BitmapText(font);
+        txtSimbolo.setSize(24f);
+        txtSimbolo.setColor(ColorRGBA.White);
+        txtSimbolo.setText(simbolo);
+        
+        // Centrar el texto dentro del cuadro
+        float anchoTexto = txtSimbolo.getLineWidth();
+        txtSimbolo.setLocalTranslation(
+            x - anchoTexto/2, 
+            y + 8f,  // Ajuste vertical para centrar
+            0.3f
+        );
+        
+        nodoIndicadoresDireccionales.attachChild(txtSimbolo);
+    }
+
+    // ==================== VERIFICACIÓN ====================
+    
+    private void verificarVisibilidad() {
+        System.out.println("\n🔍 Verificando visibilidad de elementos:");
+        
+        int elementosVisibles = 0;
+        int elementosTotales = 0;
+        
+        if (objetoCentral != null && objetoCentral.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Objeto central: VISIBLE");
+        } else {
+            System.out.println("  ✗ Objeto central: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (barraVidaFondo != null && barraVidaFondo.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Barra vida fondo: VISIBLE");
+        } else {
+            System.out.println("  ✗ Barra vida fondo: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (barraVidaActual != null && barraVidaActual.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Barra vida actual: VISIBLE");
+        } else {
+            System.out.println("  ✗ Barra vida actual: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (txtScore != null && txtScore.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Texto score: VISIBLE");
+        } else {
+            System.out.println("  ✗ Texto score: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (nodoIndicadoresDireccionales != null && nodoIndicadoresDireccionales.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Indicadores: VISIBLES (" + 
+                nodoIndicadoresDireccionales.getChildren().size() + " elementos)");
+        }
+        elementosTotales++;
+        
+        System.out.println("\n  📊 Resumen: " + elementosVisibles + "/" + 
+            elementosTotales + " elementos visibles");
+    }
+
+    // ==================== BARRA DE VIDA ====================
+    
+    private void crearBarraVida() {
+        float anchoBarraMax = 500f;
+        float altoBarraMax = 35f;
+        float posX = (ancho - anchoBarraMax) / 2;
+        float posY = 60f;
+        
+        System.out.println("  💚 Creando barra de vida en: (" + posX + ", " + posY + ")");
+        
+        Quad fondoQuad = new Quad(anchoBarraMax, altoBarraMax);
+        barraVidaFondo = new Geometry("BarraVidaFondo", fondoQuad);
+        
+        Material matFondo = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        matFondo.setColor("Color", new ColorRGBA(0.1f, 0.1f, 0.1f, 0.9f));
+        matFondo.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        barraVidaFondo.setMaterial(matFondo);
+        barraVidaFondo.setLocalTranslation(posX, posY, 0);
+        guiNode.attachChild(barraVidaFondo);
+        
+        Quad vidaQuad = new Quad(anchoBarraMax, altoBarraMax);
+        barraVidaActual = new Geometry("BarraVidaActual", vidaQuad);
+        
+        Material matVida = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        matVida.setColor("Color", COLOR_VIDA_ALTA);
+        matVida.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        barraVidaActual.setMaterial(matVida);
+        barraVidaActual.setLocalTranslation(posX, posY, 0.1f);
+        guiNode.attachChild(barraVidaActual);
+        
+        txtVidaPorcentaje = new BitmapText(font);
+        txtVidaPorcentaje.setSize(22f);
+        txtVidaPorcentaje.setColor(ColorRGBA.White);
+        txtVidaPorcentaje.setText("100%");
+        txtVidaPorcentaje.setLocalTranslation(posX + anchoBarraMax / 2 - 30f, posY + 23f, 0.2f);
+        guiNode.attachChild(txtVidaPorcentaje);
+        
+        System.out.println("  ✓ Barra de vida creada");
+    }
+
+    public void actualizarVida(int nuevaVida) {
+        vidaActual = Math.max(0, Math.min(vidaMaxima, nuevaVida));
+        float porcentaje = (float) vidaActual / vidaMaxima;
+        
+        float anchoBarraMax = 500f;
+        float nuevoAncho = anchoBarraMax * porcentaje;
+        
+        Quad vidaQuad = new Quad(nuevoAncho, 35f);
+        barraVidaActual.setMesh(vidaQuad);
+        
+        Material mat = barraVidaActual.getMaterial();
+        if (porcentaje > 0.6f) {
+            mat.setColor("Color", COLOR_VIDA_ALTA);
+        } else if (porcentaje > 0.3f) {
+            mat.setColor("Color", COLOR_VIDA_MEDIA);
+        } else {
+            mat.setColor("Color", COLOR_VIDA_BAJA);
+        }
+        
+        txtVidaPorcentaje.setText(String.format("%d%%", (int)(porcentaje * 100)));
+        txtVidaPorcentaje.setColor(porcentaje <= 0.3f ? ColorRGBA.Red : ColorRGBA.White);
+    }
+
+    // ==================== SCORE ====================
+    
+    private void crearTextoScore() {
+        txtScore = new BitmapText(font);
+        txtScore.setSize(28f);
+        txtScore.setColor(ColorRGBA.White);
+        txtScore.setText("Score: 0");
+        txtScore.setLocalTranslation(30f, alto - 30f, 0);
+        guiNode.attachChild(txtScore);
+        
+        System.out.println("  ✓ Texto score añadido");
+    }
+
+    public void actualizarScore(int score) {
+        if (txtScore != null) {
+            txtScore.setText("Score: " + score);
+        }
+    }
+
+    // ==================== COMBO ====================
+    
+    private void crearTextoCombo() {
+        txtCombo = new BitmapText(font);
+        txtCombo.setSize(36f);
+        txtCombo.setColor(ColorRGBA.Cyan);
+        txtCombo.setText("");
+        txtCombo.setLocalTranslation(ancho / 2 - 80f, 130f, 0);
+        guiNode.attachChild(txtCombo);
+        
+        System.out.println("  ✓ Texto combo añadido");
+    }
+
+    public void actualizarCombo(int combo) {
+        if (txtCombo == null) return;
+        
+        if (combo > 1) {
+            txtCombo.setText("COMBO x" + combo);
             
-            // Restaurar después de 0.1s
+            if (combo >= 20) {
+                txtCombo.setColor(new ColorRGBA(1f, 0f, 1f, 1f));
+                txtCombo.setSize(44f);
+            } else if (combo >= 10) {
+                txtCombo.setColor(new ColorRGBA(1f, 0.5f, 0f, 1f));
+                txtCombo.setSize(40f);
+            } else {
+                txtCombo.setColor(ColorRGBA.Cyan);
+                txtCombo.setSize(36f);
+            }
+        } else {
+            txtCombo.setText("");
+        }
+    }
+
+    // ==================== CANCIÓN ====================
+    
+    private void crearTextoCancion() {
+        txtCancion = new BitmapText(font);
+        txtCancion.setSize(18f);
+        txtCancion.setColor(new ColorRGBA(0.8f, 0.8f, 1f, 1f));
+        txtCancion.setText("♪ Cargando...");
+        txtCancion.setLocalTranslation(ancho - 350f, alto - 30f, 0);
+        guiNode.attachChild(txtCancion);
+        
+        System.out.println("  ✓ Texto canción añadido");
+    }
+
+    public void mostrarCancion(String nombreCancion) {
+        if (txtCancion == null) return;
+        
+        String nombre = nombreCancion;
+        if (nombreCancion.contains("/")) {
+            String[] partes = nombreCancion.split("/");
+            nombre = partes[partes.length - 1];
+        }
+        
+        if (nombre.endsWith(".wav")) {
+            nombre = nombre.substring(0, nombre.length() - 4);
+        }
+        
+        txtCancion.setText("♪ " + nombre);
+    }
+
+    // ==================== BOTÓN DE PAUSA ====================
+    
+    private void crearBotonPausa() {
+        float tamano = 60f;
+        float posX = ancho - tamano - 20f;
+        float posY = alto - tamano - 80f;
+        
+        System.out.println("  ⏸ Creando botón de pausa en: (" + posX + ", " + posY + ")");
+        
+        Quad quad = new Quad(tamano, tamano);
+        btnPausa = new Geometry("BotonPausa", quad);
+        
+        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", new ColorRGBA(0.2f, 0.2f, 0.2f, 0.8f));
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        btnPausa.setMaterial(mat);
+        btnPausa.setLocalTranslation(posX, posY, 10);
+        guiNode.attachChild(btnPausa);
+        
+        txtPausa = new BitmapText(font);
+        txtPausa.setSize(40f);
+        txtPausa.setColor(ColorRGBA.White);
+        txtPausa.setText("||");
+        txtPausa.setLocalTranslation(posX + 15f, posY + 42f, 11);
+        guiNode.attachChild(txtPausa);
+        
+        System.out.println("  ✓ Botón de pausa creado");
+    }
+
+    // ==================== FEEDBACK TEMPORAL ====================
+    
+    public void mostrarFeedback(String mensaje, ColorRGBA color) {
+        BitmapText txtFeedback = new BitmapText(font);
+        txtFeedback.setSize(40f);
+        txtFeedback.setColor(color);
+        txtFeedback.setText(mensaje);
+        
+        float anchoTexto = txtFeedback.getLineWidth();
+        txtFeedback.setLocalTranslation(ancho / 2 - anchoTexto / 2, alto / 2 + 150f, 1f);
+        
+        guiNode.attachChild(txtFeedback);
+        mensajesFeedback.add(new MensajeFeedback(txtFeedback, 0f));
+    }
+
+    public void actualizarFeedback(float tpf) {
+        List<MensajeFeedback> mensajesAEliminar = new ArrayList<>();
+        
+        for (MensajeFeedback msg : mensajesFeedback) {
+            msg.tiempo += tpf;
+            
+            float alpha = 1f - (msg.tiempo / DURACION_FEEDBACK);
+            if (alpha > 0) {
+                ColorRGBA colorActual = msg.texto.getColor().clone();
+                colorActual.a = alpha;
+                msg.texto.setColor(colorActual);
+                
+                Vector3f pos = msg.texto.getLocalTranslation();
+                msg.texto.setLocalTranslation(pos.x, pos.y + 60f * tpf, pos.z);
+            } else {
+                msg.texto.removeFromParent();
+                mensajesAEliminar.add(msg);
+            }
+        }
+        
+        mensajesFeedback.removeAll(mensajesAEliminar);
+    }
+
+    // ==================== ⭐ MÉTODOS NUEVOS PARA SISTEMA MEJORADO ====================
+    
+    public void mostrarBonusPuntos(int puntos) {
+        BitmapText txtBonus = new BitmapText(font);
+        txtBonus.setSize(32f);
+        txtBonus.setColor(new ColorRGBA(1f, 0.8f, 0f, 1f));
+        txtBonus.setText("+" + puntos);
+        
+        float anchoTexto = txtBonus.getLineWidth();
+        txtBonus.setLocalTranslation(
+            ancho / 2 - anchoTexto / 2, 
+            alto / 2 + 100f, 
+            2f
+        );
+        
+        guiNode.attachChild(txtBonus);
+        mensajesFeedback.add(new MensajeFeedback(txtBonus, 0f));
+        
+        System.out.println("💰 Bonus de puntos mostrado: +" + puntos);
+    }
+
+    public void mostrarAdvertenciaVidaBaja() {
+        if (barraVidaActual != null) {
+            Material mat = barraVidaActual.getMaterial();
+            ColorRGBA colorActual = mat.getParamValue("Color");
+            
+            if (colorActual != null) {
+                if (colorActual.r > 0.8f) {
+                    mat.setColor("Color", new ColorRGBA(0.6f, 0.1f, 0.1f, 1f));
+                } else {
+                    mat.setColor("Color", new ColorRGBA(1f, 0.2f, 0.2f, 1f));
+                }
+            }
+        }
+        
+        mostrarFeedback("¡VIDA BAJA!", ColorRGBA.Red);
+        
+        if (materialObjetoCentral != null) {
+            materialObjetoCentral.setColor("Color", new ColorRGBA(2f, 0.5f, 0.5f, 1f));
+            
             new Thread(() -> {
                 try {
-                    Thread.sleep(100);
-                    app.enqueue(() -> {
-                        objetoCentral.setLocalScale(1.0f);
-                        return null;
-                    });
+                    Thread.sleep(200);
+                    if (materialObjetoCentral != null && colorBaseObjetoCentral != null) {
+                        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+                    }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }).start();
         }
+        
+        System.out.println("⚠️ ADVERTENCIA: Vida baja activada");
     }
-    
-    /**
-     * ⭐ NUEVO: Activa brillo especial cuando se presiona ESPACIO
-     */
-    public void activarBrilloEspacio() {
-        brillandoEspacio = true;
-        tiempoBrilloEspacio = 0f;
-    }
-    
-    // ==================== BARRA DE VIDA ====================
-    
-    private void crearBarraVida() {
-        float anchoTotal = 400f;
-        float altoTotal = 30f;
-        float margen = 20f;
-        
-        // Fondo de la barra
-        Material matFondo = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        matFondo.setColor("Color", new ColorRGBA(0.2f, 0.2f, 0.2f, 0.8f));
-        matFondo.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        barraVidaFondo = new Geometry("BarraVidaFondo", new Quad(anchoTotal, altoTotal));
-        barraVidaFondo.setMaterial(matFondo);
-        barraVidaFondo.setLocalTranslation(margen, alto - altoTotal - margen, 2f);
-        
-        // Barra de vida
-        materialVida = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        materialVida.setColor("Color", new ColorRGBA(0f, 1f, 0.3f, 0.9f));
-        materialVida.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        barraVida = new Geometry("BarraVida", new Quad(anchoTotal, altoTotal));
-        barraVida.setMaterial(materialVida);
-        barraVida.setLocalTranslation(margen, alto - altoTotal - margen, 2.1f);
-        
-        uiRootNode.attachChild(barraVidaFondo);
-        uiRootNode.attachChild(barraVida);
-    }
-    
-    public void actualizarVida(int vida) {
-        if (barraVida == null) return;
-        
-        float porcentaje = Math.max(0, Math.min(100, vida)) / 100f;
-        float anchoTotal = 400f;
-        float nuevoAncho = anchoTotal * porcentaje;
-        
-        barraVida.setMesh(new Quad(nuevoAncho, 30f));
-        
-        // Cambiar color según vida
-        ColorRGBA color;
-        if (vida > 60) {
-            color = new ColorRGBA(0f, 1f, 0.3f, 0.9f); // Verde
-        } else if (vida > 30) {
-            color = new ColorRGBA(1f, 0.8f, 0f, 0.9f); // Amarillo
-        } else {
-            color = new ColorRGBA(1f, 0.2f, 0f, 0.9f); // Rojo
-        }
-        
-        materialVida.setColor("Color", color);
-    }
-    
-    // ==================== TEXTOS UI ====================
-    
-    private void crearTextoScore() {
-        BitmapFont font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
-        textoScore = new BitmapText(font);
-        textoScore.setSize(font.getCharSet().getRenderedSize() * 2);
-        textoScore.setColor(ColorRGBA.White);
-        textoScore.setText("Score: 0");
-        textoScore.setLocalTranslation(ancho - 250, alto - 70, 3f);
-        uiRootNode.attachChild(textoScore);
-    }
-    
-    public void actualizarScore(int score) {
-        if (textoScore != null) {
-            textoScore.setText("Score: " + score);
-        }
-    }
-    
-    private void crearTextoCombo() {
-        BitmapFont font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
-        textoCombo = new BitmapText(font);
-        textoCombo.setSize(font.getCharSet().getRenderedSize() * 1.5f);
-        textoCombo.setColor(new ColorRGBA(1f, 0.8f, 0f, 1f));
-        textoCombo.setText("Combo: 0");
-        textoCombo.setLocalTranslation(20, alto - 100, 3f);
-        uiRootNode.attachChild(textoCombo);
-    }
-    
-    public void actualizarCombo(int combo) {
-        if (textoCombo != null) {
-            if (combo > 0) {
-                textoCombo.setText("Combo: x" + combo);
-                textoCombo.setColor(new ColorRGBA(1f, 0.8f, 0f, 1f));
-            } else {
-                textoCombo.setText("");
-            }
-        }
-    }
-    
-    private void crearTextoCancion() {
-        BitmapFont font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
-        textoCancion = new BitmapText(font);
-        textoCancion.setSize(font.getCharSet().getRenderedSize() * 1.5f);
-        textoCancion.setColor(ColorRGBA.White);
-        textoCancion.setText("");
-        textoCancion.setLocalTranslation(ancho / 2 - 100, alto - 30, 3f);
-        uiRootNode.attachChild(textoCancion);
-    }
-    
-    public void mostrarCancion(String nombre) {
-        if (textoCancion != null) {
-            textoCancion.setText("♪ " + nombre);
-        }
-    }
-    
-    // ==================== FEEDBACK VISUAL ====================
-    
-    public void mostrarFeedback(String texto, ColorRGBA color) {
-        if (textoFeedback == null) {
-            BitmapFont font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
-            textoFeedback = new BitmapText(font);
-            textoFeedback.setSize(font.getCharSet().getRenderedSize() * 3);
-            uiRootNode.attachChild(textoFeedback);
-        }
-        
-        textoFeedback.setText(texto);
-        textoFeedback.setColor(color);
-        textoFeedback.setLocalTranslation(
-            ancho / 2 - textoFeedback.getLineWidth() / 2,
-            alto / 2 + 150,
-            4f
-        );
-        
-        mostrandoFeedback = true;
-        tiempoFeedback = 0f;
-    }
-    
-    public void actualizarFeedback(float tpf) {
-        if (mostrandoFeedback && textoFeedback != null) {
-            tiempoFeedback += tpf;
-            
-            if (tiempoFeedback > 0.8f) {
-                textoFeedback.setText("");
-                mostrandoFeedback = false;
-            } else {
-                float alpha = 1.0f - (tiempoFeedback / 0.8f);
-                ColorRGBA color = textoFeedback.getColor();
-                color.a = alpha;
-                textoFeedback.setColor(color);
-            }
-        }
-    }
-    
-    // ==================== BOTÓN PAUSA ====================
-    
-    private void crearBotonPausa() {
-        // ⭐ FIX: Crear botón de pausa con geometría simple en lugar de Picture
-        float tamanoPausa = 40f;
-        
-        Material matPausa = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        matPausa.setColor("Color", new ColorRGBA(0.9f, 0.9f, 0.9f, 0.8f));
-        matPausa.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        Geometry botonPausaGeom = new Geometry("BotonPausa", new Quad(tamanoPausa, tamanoPausa));
-        botonPausaGeom.setMaterial(matPausa);
-        botonPausaGeom.setLocalTranslation(ancho - 60, alto - 60, 3f);
-        
-        uiRootNode.attachChild(botonPausaGeom);
-        
-        // Nota: El Picture original causaba error por falta de textura
-        // Si quieres usar una textura personalizada, descomenta esto:
-        /*
-        botonPausa = new Picture("BotonPausa");
-        botonPausa.setImage(app.getAssetManager(), "Textures/pausa_icon.png", true);
-        botonPausa.setWidth(40);
-        botonPausa.setHeight(40);
-        botonPausa.setPosition(ancho - 60, alto - 60);
-        uiRootNode.attachChild(botonPausa);
-        */
-    }
-    
-    // ==================== UTILIDADES ====================
+
+    // ==================== OCULTAR/MOSTRAR ====================
     
     public void ocultarTemporalmente() {
-        if (uiRootNode != null) {
-            uiRootNode.removeFromParent();
-        }
+        System.out.println("🔴 Ocultando UI del gameplay");
+        
+        if (barraVidaFondo != null) barraVidaFondo.removeFromParent();
+        if (barraVidaActual != null) barraVidaActual.removeFromParent();
+        if (txtVidaPorcentaje != null) txtVidaPorcentaje.removeFromParent();
+        if (txtScore != null) txtScore.removeFromParent();
+        if (txtCombo != null) txtCombo.removeFromParent();
+        if (txtCancion != null) txtCancion.removeFromParent();
+        if (btnPausa != null) btnPausa.removeFromParent();
+        if (txtPausa != null) txtPausa.removeFromParent();
+        if (uiRootNode != null) uiRootNode.removeFromParent();
     }
-    
+
     public void mostrarNuevamente() {
+        System.out.println("🟢 Mostrando UI del gameplay");
+        
         if (uiRootNode != null && uiRootNode.getParent() == null) {
             guiNode.attachChild(uiRootNode);
         }
+        
+        if (barraVidaFondo != null && barraVidaFondo.getParent() == null) {
+            guiNode.attachChild(barraVidaFondo);
+        }
+        
+        if (barraVidaActual != null && barraVidaActual.getParent() == null) {
+            guiNode.attachChild(barraVidaActual);
+        }
+        
+        if (txtVidaPorcentaje != null && txtVidaPorcentaje.getParent() == null) {
+            guiNode.attachChild(txtVidaPorcentaje);
+        }
+        
+        if (txtScore != null && txtScore.getParent()== null) {
+            guiNode.attachChild(txtScore);
+        }
+        
+        if (txtCombo != null && txtCombo.getParent() == null) {
+            guiNode.attachChild(txtCombo);
+        }
+        
+        if (txtCancion != null && txtCancion.getParent() == null) {
+            guiNode.attachChild(txtCancion);
+        }
+        
+        if (btnPausa != null && btnPausa.getParent() == null) {
+            guiNode.attachChild(btnPausa);
+        }
+        
+        if (txtPausa != null && txtPausa.getParent() == null) {
+            guiNode.attachChild(txtPausa);
+        }
     }
+
+    // ==================== LIMPIEZA ====================
     
     public void limpiar() {
+        System.out.println("🧹 Limpiando GameplayUI...");
+        
+        ocultarTemporalmente();
+        
+        for (MensajeFeedback msg : mensajesFeedback) {
+            if (msg.texto.getParent() != null) {
+                msg.texto.removeFromParent();
+            }
+        }
+        mensajesFeedback.clear();
+        
+        if (objetoCentral != null) {
+            objetoCentral.removeFromParent();
+            objetoCentral = null;
+        }
+        
         if (uiRootNode != null) {
-            uiRootNode.removeFromParent();
+            uiRootNode.detachAllChildren();
             uiRootNode = null;
+        }
+        
+        System.out.println("✓ GameplayUI limpiado");
+    }
+
+    // ==================== CLASE INTERNA ====================
+    
+    private static class MensajeFeedback {
+        BitmapText texto;
+        float tiempo;
+        
+        MensajeFeedback(BitmapText texto, float tiempo) {
+            this.texto = texto;
+            this.tiempo = tiempo;
         }
     }
 }

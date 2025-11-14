@@ -41,10 +41,10 @@ import java.io.InputStream;
 /**
  * GameplayAppState - Sistema de juego completo con mejoras visuales
  * ✅ Sistema de input mejorado con WASD + Flechas
- * ✅ Zonas de impacto visibles en los bordes
  * ✅ Objeto central reactivo con pulso rítmico
  * ✅ Feedback visual sincronizado con la música
  * ✅ Detección de hits precisa con ventanas configurables
+ * ✅ TODAS LAS FIRMAS DE MÉTODOS CORREGIDAS
  * 
  * @author CamiLaNekoUwU_Gamer
  */
@@ -94,18 +94,18 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int malos = 0;
     private int misses = 0;
     
-    // ⭐ Sistema de input mejorado
+    // Sistema de input mejorado
     private Map<Direccion, Boolean> teclasPresionadas;
     private Map<Direccion, Float> ultimoTiempoInput;
     private float cooldownInput = 0.1f;
     
-    // ⭐ Ventanas de timing configurables
+    // Ventanas de timing configurables
     private static final float VENTANA_PERFECTA = 0.05f;  // 50ms
     private static final float VENTANA_BUENA = 0.15f;     // 150ms
     private static final float VENTANA_MALA = 0.30f;      // 300ms
     private static final float VENTANA_MISS = 0.40f;      // 400ms
     
-    // ⭐ Sistema de detección de hits mejorado
+    // Sistema de detección de hits mejorado
     private Set<FlechaControl> flechasProcesadas;
     
     // Otros
@@ -169,9 +169,8 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         app.getCamera().setParallelProjection(true);
         
-        // ⭐ NUEVO: Ampliar el área visible (frustum más grande)
-        // Multiplica por un factor para ver más allá de los bordes físicos de la ventana
-        float factorAmplificacion = 1.5f; // 50% más grande
+        // Ampliar el área visible (frustum más grande)
+        float factorAmplificacion = 1.5f;
         float aspect = (float) app.getCamera().getWidth() / app.getCamera().getHeight();
         
         float altoVisible = alto * factorAmplificacion;
@@ -179,10 +178,10 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         app.getCamera().setFrustum(
             -1000, 1000, 
-            -aspect * altoVisible / 2,  // left
-            aspect * altoVisible / 2,   // right
-            altoVisible / 2,            // top
-            -altoVisible / 2            // bottom
+            -aspect * altoVisible / 2,
+            aspect * altoVisible / 2,
+            altoVisible / 2,
+            -altoVisible / 2
         );
         
         System.out.println("📐 Área de juego ampliada:");
@@ -206,10 +205,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     }
     
     private void crearProtagonista() {
-        // ⭐ ELIMINADO: Ya no creamos protagonista aquí
         // El objeto central se crea en GameplayUI y es reactivo
-        // Este método ahora está vacío para mantener compatibilidad
-        
         System.out.println("✓ Objeto central gestionado por GameplayUI");
     }
     
@@ -274,7 +270,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    // ==================== UPDATE PRINCIPAL CON MEJORAS ====================
+    // ==================== ✅ UPDATE PRINCIPAL CORREGIDO ====================
     
     @Override
     public void update(float tpf) {
@@ -297,16 +293,16 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // Actualizar tiempo
         tiempoTranscurrido += tpf;
         
-        // ⭐ Procesar inputs en cada frame
+        // Procesar inputs en cada frame
         procesarInputsContinuos();
         
-        // ⭐ NUEVO: Actualizar UI y objeto central con pulso rítmico
+        // ✅ CORREGIDO: Actualizar UI con la firma correcta
         if (gameplayUI != null) {
             gameplayUI.actualizarFeedback(tpf);
             gameplayUI.actualizarCombo(combo);
             
-            // ⭐ Actualizar brillo del objeto central sincronizado con la música
-            gameplayUI.actualizarBrilloObjetoCentral(tpf, tiempoTranscurrido);
+            // ✅ CORREGIDO: Solo pasar TPF (1 parámetro)
+            gameplayUI.actualizarBrilloObjetoCentral(tpf);
         }
         
         // Generar y verificar flechas
@@ -457,7 +453,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }, "FinJuegoThread").start();
     }
     
-    // ==================== SISTEMA DE AUDIO CON CONFIGURACIÓN DE BPM ====================
+    // ==================== SISTEMA DE AUDIO ====================
     
     private void reproducirCancionActual() {
         if (cancionActual >= canciones.size()) {
@@ -489,11 +485,9 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 System.out.println("  ⏱ Duración: " + formatearTiempo(duracion));
                 System.out.println("  ✓ Reproduciendo correctamente");
                 
-                // ⭐ NUEVO: Configurar pulso rítmico según BPM detectado
-                if (analisisActual != null && gameplayUI != null) {
+                if (analisisActual != null) {
                     float bpm = (float) analisisActual.getBPMEstimado();
                     if (bpm > 0) {
-                        gameplayUI.configurarPulsoBPM(bpm);
                         System.out.println("  🎵 BPM: " + String.format("%.1f", bpm));
                     }
                 }
@@ -631,7 +625,6 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             FlechaControl control = flecha.getControl(FlechaControl.class);
             
             if (control != null && control.fueErrada() && !control.fueGolpeada()) {
-                // Solo registrar miss si no fue procesada antes
                 if (!flechasProcesadas.contains(control)) {
                     registrarMiss();
                     flechasProcesadas.add(control);
@@ -646,7 +639,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    // ==================== SISTEMA DE INPUT CON WASD + FLECHAS ====================
+    // ==================== ✅ SISTEMA DE INPUT CORREGIDO ====================
     
     private void setupInputs() {
         mappingTeclas = new HashMap<>();
@@ -663,7 +656,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             }
         } catch (Exception e) {}
         
-        // Configurar AMBOS esquemas de control (WASD + Flechas)
+        // Configurar AMBOS esquemas (WASD + Flechas)
         app.getInputManager().addMapping("Arriba", 
             new KeyTrigger(KeyInput.KEY_W),
             new KeyTrigger(KeyInput.KEY_UP)
@@ -715,7 +708,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     }
     
     /**
-     * ⭐ MEJORADO: Procesa input con activación de zonas visuales
+     * ✅ CORREGIDO: Sin llamadas a métodos inexistentes
      */
     private void procesarInputInmediato(Direccion direccion) {
         // Verificar cooldown
@@ -724,14 +717,9 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             return;
         }
         
-        // ⭐ NUEVO: Activar zona de impacto visualmente
-        if (gameplayUI != null) {
-            gameplayUI.activarZona(direccion);
-            
-            // ⭐ Si es ESPACIO, activar brillo especial
-            if (direccion == Direccion.ESPACIO) {
-                gameplayUI.activarBrilloEspacio();
-            }
+        // ✅ CORREGIDO: Solo activar brillo ESPACIO (método que SÍ existe)
+        if (gameplayUI != null && direccion == Direccion.ESPACIO) {
+            gameplayUI.activarBrilloEspacio();
         }
         
         // Buscar flecha válida
@@ -814,10 +802,10 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         return null;
     }
     
-    // ==================== SISTEMA DE PUNTUACIÓN CON FEEDBACK VISUAL ====================
+    // ==================== ✅ SISTEMA DE PUNTUACIÓN CORREGIDO ====================
     
     /**
-     * ⭐ MEJORADO: Evaluación con activación de brillo en objeto central
+     * ✅ CORREGIDO: Firma correcta con 1 solo parámetro
      */
     private void evaluarHit(FlechaControl flecha, float delay) {
         delay = Math.abs(delay);
@@ -891,15 +879,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             }
         }
         
-        // ⭐ NUEVO: Actualizar UI con feedback visual mejorado
+        // ✅ CORREGIDO: Actualizar UI con la firma correcta
         if (gameplayUI != null) {
             gameplayUI.actualizarScore(score);
             gameplayUI.mostrarFeedback(feedback, colorFeedback);
             gameplayUI.actualizarCombo(combo);
             
-            // ⭐ Activar brillo en el objeto central
+            // ✅ CORREGIDO: Solo pasar ColorRGBA (1 parámetro)
             ColorRGBA colorFlecha = flecha.getDireccion().getColor();
-            gameplayUI.activarBrilloHit(colorFlecha, perfectHit);
+            gameplayUI.activarBrilloHit(colorFlecha);
+            
+            // Si fue perfecto, mostrar bonus
+            if (perfectHit && puntos > 100) {
+                gameplayUI.mostrarBonusPuntos(puntos);
+            }
         }
         
         // Marcar flecha como golpeada
@@ -925,6 +918,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             gameplayUI.actualizarVida(vida);
             gameplayUI.mostrarFeedback("MISS!", ColorRGBA.Red);
             gameplayUI.actualizarCombo(0);
+            
+            // Advertencia si la vida está baja
+            if (vida <= 30 && vida > 0) {
+                gameplayUI.mostrarAdvertenciaVidaBaja();
+            }
         }
     }
     
