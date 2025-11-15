@@ -34,6 +34,7 @@ import com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo;
 import java.util.*;
 import javax.swing.SwingUtilities;
 import com.jme3.app.SimpleApplication;
+import com.jme3.texture.Texture;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -85,6 +86,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int cancionActual = 0;
     private AudioNode audioNode;
     private ResultadoAnalisis analisisActual;
+    private FlechaProceduralGenerator flechaGenerator;
     
     // Timing
     private float tiempoTranscurrido = 0f;
@@ -156,17 +158,18 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         this.app = (MiJuegoDeRitmo) app;
         this.assetManager = app.getAssetManager();
         this.gameNode = new Node("GameNode");
+        this.flechaGenerator = new FlechaProceduralGenerator(assetManager);
         
         // Deshabilitar cámara voladora
         this.app.getFlyByCamera().setEnabled(false);
-        
+        System.out.println("✓ Generador de flechas procedurales inicializado");
         // Configurar cámara 2D
         configurarCamara2D();
         
         // Crear elementos visuales
         crearFondo();
         crearProtagonista();
-        
+        crearZonasDeImpacto();
         // Inicializar sistemas
         setupInputs();
         inicializarUI();
@@ -179,6 +182,72 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         reproducirCancionActual();
         
         System.out.println("✓ Gameplay inicializado correctamente");
+    }
+     private void crearZonasDeImpacto() {
+        Node nodoZonas = new Node("ZonasImpacto");
+        
+        float ancho = app.getCamera().getWidth();
+        float alto = app.getCamera().getHeight();
+        float centroX = ancho / 2f;
+        float centroY = alto / 2f;
+        
+        float tamanoZona = 80f;
+        float separacion = 120f; // Distancia desde el centro
+        
+        System.out.println("🎯 Creando zonas de impacto...");
+        
+        // Zona ARRIBA
+        crearZonaFlecha(nodoZonas, Direccion.ARRIBA, centroX, centroY + separacion, tamanoZona);
+        
+        // Zona ABAJO
+        crearZonaFlecha(nodoZonas, Direccion.ABAJO, centroX, centroY - separacion, tamanoZona);
+        
+        // Zona IZQUIERDA
+        crearZonaFlecha(nodoZonas, Direccion.IZQUIERDA, centroX + separacion, centroY, tamanoZona);
+        System.out.println("   ← IZQUIERDA posicionada en X=" + (centroX + separacion));
+    
+        // Zona DERECHA
+        crearZonaFlecha(nodoZonas, Direccion.DERECHA, centroX - separacion, centroY, tamanoZona);
+        System.out.println("   → DERECHA posicionada en X=" + (centroX - separacion));
+    
+        // Zona ESPACIO (centro)
+         crearZonaEspacio(nodoZonas, centroX, centroY, tamanoZona);
+        
+        app.getGuiNode().attachChild(nodoZonas);
+        System.out.println("✓ Zonas de impacto creadas: 5 zonas");
+    }
+    private void crearZonaFlecha(Node parent, Direccion direccion, float x, float y, float tamano) {
+        Texture textura = flechaGenerator.crearTexturaZonaFlecha(
+            direccion,
+            FlechaProceduralGenerator.ZONA_BORDE_DEFAULT,
+            FlechaProceduralGenerator.ZONA_FONDO_DEFAULT
+        );
+        
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setTexture("ColorMap", textura);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        Geometry zona = new Geometry("Zona_" + direccion.name(), new Quad(tamano, tamano));
+        zona.setMaterial(mat);
+        zona.setLocalTranslation(x - tamano/2, y - tamano/2, 0.5f); // Z más bajo que flechas
+        
+        parent.attachChild(zona);
+    }
+    private void crearZonaEspacio(Node parent, float x, float y, float tamano) {
+        Texture textura = flechaGenerator.crearTexturaZonaEspacio(
+            FlechaProceduralGenerator.ZONA_BORDE_ESPACIO,
+            FlechaProceduralGenerator.ZONA_FONDO_ESPACIO
+        );
+        
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setTexture("ColorMap", textura);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        Geometry zona = new Geometry("Zona_ESPACIO", new Quad(tamano, tamano));
+        zona.setMaterial(mat);
+        zona.setLocalTranslation(x - tamano/2, y - tamano/2, 0.5f);
+        
+        parent.attachChild(zona);
     }
     
     private void configurarCamara2D() {
@@ -613,50 +682,49 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    private void crearFlechaEnPantalla(FlechaData flechaData) {
-        float tamano = 70f;
-        Geometry flechaGeom = new Geometry("Flecha", new Quad(tamano, tamano));
+    
+private void crearFlechaEnPantalla(FlechaData flechaData) {
+        // ⭐ USAR GENERADOR PROCEDURAL
+        Geometry flechaGeom = flechaGenerator.crearFlecha(
+            flechaData.getTipo(),
+            flechaData.getDireccion()
+        );
         
-        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", flechaData.getDireccion().getColor());
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        flechaGeom.setMaterial(mat);
-        
+        // Configurar posición
         float ancho = app.getCamera().getWidth();
         float alto = app.getCamera().getHeight();
-        
         Vector3f posInicial = flechaData.getDireccion().getPosicionSpawn(ancho, alto);
         Vector3f posTarget = flechaData.getDireccion().getPosicionTarget(ancho, alto);
         
+        float tamano = 70f;
         flechaGeom.setLocalTranslation(posInicial.x - tamano/2, posInicial.y - tamano/2, 1);
         
-        float rotacion = flechaData.getDireccion().getRotacion();
-        if (rotacion != 0) {
-            flechaGeom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD);
-        }
+        // ⭐ YA NO ES NECESARIO ROTAR AQUÍ - El generador ya aplica la rotación
+        // La línea anterior que hacía esto:
+        // if (rotacion != 0) { flechaGeom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD); }
+        // ¡YA NO SE NECESITA!
         
-        // Calcular velocidad dinámica para llegar al target justo en el beat
-        float distancia = posInicial.distance(posTarget);
-        float tiempoRestante = flechaData.getBeatTime() - tiempoTranscurrido;
-        // Evitar divisiones por cero o negativas por retrasos del frame
-        tiempoRestante = Math.max(0.05f, tiempoRestante);
-        float velocidadDinamica = distancia / tiempoRestante;
-
+        // Crear control de movimiento
         FlechaControl control = new FlechaControl(
             flechaData.getTipo(),
             flechaData.getDireccion(),
             posInicial,
             posTarget,
-            velocidadDinamica,
+            flechaData.getVelocidad(),
             flechaData.getBeatTime(),
-            mat
+            flechaGeom.getMaterial() // ⭐ Pasar el material del generador
         );
         
         flechaGeom.addControl(control);
         gameNode.attachChild(flechaGeom);
         flechasActivas.add(flechaGeom);
     }
+    
+    // ==================== RESTO DEL CÓDIGO SIN CAMBIOS ====================
+    
+    // ... todo el resto de tu código existente permanece igual ...
+    // (update, evaluarHit, registrarMiss, setupInputs, etc.)
+
     
     private void verificarMisses() {
         Iterator<Geometry> iterator = flechasActivas.iterator();
