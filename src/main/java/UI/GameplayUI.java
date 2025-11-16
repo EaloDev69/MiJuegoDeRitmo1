@@ -46,6 +46,18 @@ public class GameplayUI {
     private float tiempoBrilloEspacio = 0f;
     private boolean brillandoEspacio = false;
     private ColorRGBA colorBaseObjetoCentral;
+    private boolean wiggleActivo = false;
+    private float tiempoWiggle = 0f;
+    private int wiggleRepeticiones = 0;
+    private float wiggleDuracion = 0.35f;
+    private float wiggleAmplitud = 18f;
+    private float baseX;
+    private float baseY;
+    private boolean baileActivo = false;
+    private float tiempoBaile = 0f;
+    private float baileDuracion = 0.8f;
+    private float baileAmplitudX = 12f;
+    private float baileAmplitudY = 8f;
     
     // Efecto de pulso constante
     private float tiempoPulso = 0f;
@@ -142,7 +154,9 @@ public class GameplayUI {
             
             objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
             objetoCentral.setMaterial(materialObjetoCentral);
-            objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
+            baseX = centroX - tamano/2;
+            baseY = centroY - tamano/2;
+            objetoCentral.setLocalTranslation(baseX, baseY, 5);
             
             uiRootNode.attachChild(objetoCentral);
             
@@ -165,7 +179,9 @@ public class GameplayUI {
         
         objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
         objetoCentral.setMaterial(materialObjetoCentral);
-        objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
+        baseX = centroX - tamano/2;
+        baseY = centroY - tamano/2;
+        objetoCentral.setLocalTranslation(baseX, baseY, 5);
         
         uiRootNode.attachChild(objetoCentral);
         
@@ -211,6 +227,35 @@ public class GameplayUI {
             ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
             materialObjetoCentral.setColor("Color", colorPulso);
         }
+
+        if (wiggleActivo) {
+            tiempoWiggle += tpf;
+            float fase = (tiempoWiggle / wiggleDuracion) * FastMath.TWO_PI;
+            float offsetX = wiggleAmplitud * FastMath.sin(fase);
+            float offsetY = 6f * FastMath.sin(fase * 2f) * 0.2f;
+            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
+            if (tiempoWiggle >= wiggleDuracion) {
+                tiempoWiggle = 0f;
+                wiggleRepeticiones--;
+                if (wiggleRepeticiones <= 0) {
+                    wiggleActivo = false;
+                    objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
+                }
+            }
+        } else if (baileActivo) {
+            tiempoBaile += tpf;
+            float progreso = tiempoBaile / baileDuracion;
+            float fase = progreso * FastMath.TWO_PI;
+            float ease = 0.5f - 0.5f * FastMath.cos(FastMath.PI * Math.min(1f, progreso));
+            float offsetX = baileAmplitudX * FastMath.sin(fase) * ease;
+            float offsetY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
+            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
+            if (tiempoBaile >= baileDuracion) {
+                baileActivo = false;
+                tiempoBaile = 0f;
+                objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
+            }
+        }
     }
 
     public void activarBrilloHit(ColorRGBA colorFlecha) {
@@ -222,6 +267,20 @@ public class GameplayUI {
         materialObjetoCentral.setColor("Color", colorMezclado);
         
         System.out.println("💫 Hit registrado - Brillo de color");
+    }
+
+    public void activarWiggleEspacio(int repeticiones) {
+        wiggleActivo = true;
+        wiggleRepeticiones = Math.max(1, repeticiones);
+        tiempoWiggle = 0f;
+        System.out.println("↔️ Objeto central WIGGLE x" + wiggleRepeticiones + " - Mecánica ESPACIO");
+    }
+
+    public void activarBaileEspacio(float duracion) {
+        baileActivo = true;
+        tiempoBaile = 0f;
+        baileDuracion = Math.max(0.3f, duracion);
+        System.out.println("〰️ Objeto central BAILE suave (" + baileDuracion + "s) - ESPACIO");
     }
 
     // ==================== INDICADORES DIRECCIONALES EN LOS LADOS ====================

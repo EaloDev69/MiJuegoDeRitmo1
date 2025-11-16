@@ -139,6 +139,20 @@ public class MiJuegoDeRitmo extends SimpleApplication {
         System.out.println("✓ Gameplay iniciado correctamente");
     }
 
+    public void startGameplayConDificultad(List<String> cancionesSeleccionadas,
+                                           Map<String, ResultadoAnalisis> resultados,
+                                           Modelo.FlechasGenerator.Difficulty dificultad) {
+        System.out.println("\n=== INICIANDO GAMEPLAY (con dificultad) ===");
+        System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
+        if (menuAppStates != null) {
+            System.out.println("  - Desvinculando menú...");
+            stateManager.detach(menuAppStates);
+        }
+        gameplayAppState = new GameplayAppState(cancionesSeleccionadas, resultados, dificultad);
+        stateManager.attach(gameplayAppState);
+        System.out.println("✓ Gameplay iniciado correctamente");
+    }
+
     /**
      * Inicia el gameplay en modo práctica (sin barra de vida ni game over por vida)
      */
