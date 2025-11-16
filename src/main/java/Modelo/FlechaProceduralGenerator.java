@@ -42,13 +42,13 @@ public class FlechaProceduralGenerator {
     // ==================== COLORES (100% DEL DOCUMENTO) ====================
     
     public static final ColorRGBA COLOR_ROJO = new ColorRGBA(1.0f, 0.2f, 0.2f, 1.0f);
-    public static final ColorRGBA COLOR_AZUL = new ColorRGBA(0.2f, 0.5f, 1.0f, 1.0f);
+    public static final ColorRGBA COLOR_AZUL = new ColorRGBA(91f/255f, 203f/255f, 250f/255f, 1.0f);
     public static final ColorRGBA COLOR_VERDE = new ColorRGBA(0.2f, 1.0f, 0.3f, 1.0f);
     public static final ColorRGBA COLOR_DORADO = new ColorRGBA(1.0f, 0.85f, 0.1f, 1.0f);
     public static final ColorRGBA COLOR_LUNA = new ColorRGBA(0.7f, 0.4f, 1.0f, 1.0f);
     
     public static final ColorRGBA BORDE_ROJO = new ColorRGBA(0.6f, 0.1f, 0.1f, 1.0f);
-    public static final ColorRGBA BORDE_AZUL = new ColorRGBA(0.1f, 0.2f, 0.6f, 1.0f);
+    public static final ColorRGBA BORDE_AZUL = new ColorRGBA(30f/255f, 120f/255f, 180f/255f, 1.0f);
     public static final ColorRGBA BORDE_VERDE = new ColorRGBA(0.1f, 0.6f, 0.15f, 1.0f);
     public static final ColorRGBA BORDE_DORADO = new ColorRGBA(0.8f, 0.6f, 0.0f, 1.0f);
     public static final ColorRGBA BORDE_LUNA = new ColorRGBA(0.4f, 0.2f, 0.6f, 1.0f);

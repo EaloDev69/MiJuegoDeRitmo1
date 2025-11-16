@@ -38,7 +38,11 @@ import com.jme3.texture.Texture;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
-
+import java.nio.ByteBuffer;
+import java.util.Random;
+import com.jme3.texture.Texture2D;
+import com.jme3.util.BufferUtils;
+import com.jme3.texture.Image;
 /**
  * GameplayAppState - Sistema de juego completo con mejoras visuales
  * ✅ Sistema de input mejorado con WASD + Flechas
@@ -291,16 +295,146 @@ public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> a
 
     
    private void crearFondo() {
-        float ancho = app.getCamera().getWidth();
-        float alto = app.getCamera().getHeight();
-        Material fondoMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        fondoMat.setColor("Color", new ColorRGBA(0.05f, 0.05f, 0.15f, 1f));
-        fondoMat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        fondoGeometry = new Geometry("Fondo", new Quad(ancho, alto));
-        fondoGeometry.setMaterial(fondoMat);
-        fondoGeometry.setLocalTranslation(0, 0, -1f);
-        app.getGuiNode().attachChild(fondoGeometry);
+    float ancho = app.getCamera().getWidth();
+    float alto = app.getCamera().getHeight();
+    
+    System.out.println("🌌 Creando fondo espacial...");
+    
+    // === 1. FONDO BASE CON DEGRADADO VERTICAL ===
+    Texture texturaFondo = crearTexturaFondoEspacial((int)ancho, (int)alto);
+    
+    Material fondoMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+    fondoMat.setTexture("ColorMap", texturaFondo);
+    fondoMat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+    
+    fondoGeometry = new Geometry("FondoEspacial", new Quad(ancho, alto));
+    fondoGeometry.setMaterial(fondoMat);
+    fondoGeometry.setLocalTranslation(0, 0, -1f);
+    
+    app.getGuiNode().attachChild(fondoGeometry);
+    System.out.println("✓ Fondo espacial con estrellas creado");
+}
+   private Texture crearTexturaFondoEspacial(int ancho, int alto) {
+    System.out.println("  🎨 Generando textura espacial " + ancho + "x" + alto + "...");
+    
+    // Crear buffer de píxeles
+    ByteBuffer buffer = BufferUtils.createByteBuffer(ancho * alto * 4);
+    
+    // Color morado base: #8128E0 (129, 40, 224)
+    ColorRGBA colorSuperior = new ColorRGBA(129f/255f, 40f/255f, 224f/255f, 1f);  // #8128E0 Morado
+    ColorRGBA colorMedio = new ColorRGBA(75f/255f, 0f/255f, 130f/255f, 1f);       // #4B0082 Índigo
+    ColorRGBA colorInferior = new ColorRGBA(25f/255f, 0f/255f, 51f/255f, 1f);     // #190033 Violeta oscuro
+    
+    // === GENERAR POSICIONES ALEATORIAS DE ESTRELLAS ===
+    Random random = new Random(12345); // Seed fijo para reproducibilidad
+    int cantidadEstrellas = (ancho * alto) / 800; // Densidad ajustable
+    List<Estrella> estrellas = new ArrayList<>();
+    
+    for (int i = 0; i < cantidadEstrellas; i++) {
+        int x = random.nextInt(ancho);
+        int y = random.nextInt(alto);
+        float brillo = 0.5f + random.nextFloat() * 0.5f; // 0.5 a 1.0
+        float tamano = random.nextFloat() * 2f + 1f; // 1 a 3 píxeles
+        estrellas.add(new Estrella(x, y, brillo, tamano));
     }
+    
+    System.out.println("  ⭐ Generando " + estrellas.size() + " estrellas...");
+    
+    // === RENDERIZAR PÍXELES ===
+    for (int y = 0; y < alto; y++) {
+        for (int x = 0; x < ancho; x++) {
+            // Calcular degradado vertical (arriba = morado, abajo = negro)
+            float t = (float)y / alto;
+            ColorRGBA colorBase = interpolarColor(colorSuperior, colorInferior, t);
+            
+            // Verificar si hay una estrella en esta posición
+            ColorRGBA colorFinal = colorBase;
+            for (Estrella estrella : estrellas) {
+                float distancia = FastMath.sqrt(
+                    (x - estrella.x) * (x - estrella.x) + 
+                    (y - estrella.y) * (y - estrella.y)
+                );
+                
+                // Estrella visible si está dentro del radio
+                if (distancia <= estrella.tamano) {
+                    // Brillo más intenso en el centro
+                    float intensidad = 1f - (distancia / estrella.tamano);
+                    intensidad = FastMath.pow(intensidad, 2f); // Curva exponencial para el brillo
+                    
+                    // Color blanco brillante
+                    ColorRGBA colorEstrella = new ColorRGBA(
+                        1f, 1f, 1f, 
+                        intensidad * estrella.brillo
+                    );
+                    
+                    // Mezclar estrella con fondo
+                    colorFinal = mezclarColoresAditivo(colorBase, colorEstrella);
+                }
+            }
+            
+            // Escribir píxel al buffer
+            buffer.put((byte)(colorFinal.r * 255));
+            buffer.put((byte)(colorFinal.g * 255));
+            buffer.put((byte)(colorFinal.b * 255));
+            buffer.put((byte)(colorFinal.a * 255));
+        }
+    }
+    
+    buffer.flip();
+    
+    // Crear imagen y textura
+    Image image = new Image(
+        Image.Format.RGBA8,
+        ancho,
+        alto,
+        buffer,
+        com.jme3.texture.image.ColorSpace.sRGB
+    );
+    
+    Texture2D textura = new Texture2D(image);
+    textura.setMagFilter(Texture.MagFilter.Bilinear);
+    textura.setMinFilter(Texture.MinFilter.BilinearNearestMipMap);
+    textura.setWrap(Texture.WrapMode.Clamp);
+    
+    System.out.println("  ✓ Textura espacial generada exitosamente");
+    return textura;
+}
+private ColorRGBA interpolarColor(ColorRGBA c1, ColorRGBA c2, float t) {
+    return new ColorRGBA(
+        c1.r + (c2.r - c1.r) * t,
+        c1.g + (c2.g - c1.g) * t,
+        c1.b + (c2.b - c1.b) * t,
+        c1.a + (c2.a - c1.a) * t
+    );
+}
+
+/**
+ * Mezcla aditiva de colores (para estrellas brillantes)
+ */
+private ColorRGBA mezclarColoresAditivo(ColorRGBA base, ColorRGBA brillo) {
+    return new ColorRGBA(
+        Math.min(1f, base.r + brillo.r * brillo.a),
+        Math.min(1f, base.g + brillo.g * brillo.a),
+        Math.min(1f, base.b + brillo.b * brillo.a),
+        1f
+    );
+}
+
+/**
+ * ⭐ Clase interna para representar una estrella
+ */
+private static class Estrella {
+    final int x, y;
+    final float brillo;
+    final float tamano;
+    
+    Estrella(int x, int y, float brillo, float tamano) {
+        this.x = x;
+        this.y = y;
+        this.brillo = brillo;
+        this.tamano = tamano;
+    }
+}
 
     private void crearProtagonista() {
         System.out.println("✓ Objeto central gestionado por GameplayUI");
@@ -1167,39 +1301,42 @@ private void crearFlechaEnPantalla(FlechaData flechaData) {
         boolean perfectHit = false;
         
         if (delay <= VENTANA_PERFECTA) {
-            puntosBase = 100;
-            feedback = "¡PERFECTO!";
-            colorFeedback = new ColorRGBA(0, 1, 0.5f, 1);
-            perfectos++;
-            combo++;
-            perfectHit = true;
-            
-            if (delay <= 0.02f) {
-                puntosBase = 150;
-                feedback = "¡¡IMPECABLE!!";
-            }
-            
-        } else if (delay <= VENTANA_BUENA) {
-            puntosBase = 50;
-            feedback = "BUENO";
-            colorFeedback = ColorRGBA.Yellow;
-            buenos++;
-            combo++;
-            
-        } else if (delay <= VENTANA_MALA) {
-            puntosBase = 20;
-            feedback = "MALO";
-            colorFeedback = ColorRGBA.Orange;
-            malos++;
-            combo = 0;
-            
-        } else {
-            puntosBase = 10;
-            feedback = "TARDÍO";
-            colorFeedback = ColorRGBA.Red;
-            malos++;
-            combo = 0;
-        }
+    puntosBase = 100;
+    feedback = "¡PERFECTO!";
+    // #F7B506 Amarillo dorado
+    colorFeedback = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
+    perfectos++;
+    combo++;
+    perfectHit = true;
+    
+    if (delay <= 0.02f) {
+        puntosBase = 150;
+        feedback = "¡¡IMPECABLE!!";
+        // #11D8C5 Cyan brillante
+        colorFeedback = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
+    }
+} else if (delay <= VENTANA_BUENA) {
+    puntosBase = 50;
+    feedback = "BUENO";
+    // #F27601 Naranja
+    colorFeedback = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
+    buenos++;
+    combo++;
+} else if (delay <= VENTANA_MALA) {
+    puntosBase = 20;
+    feedback = "MALO";
+    // #FF0084 Rosa/Magenta
+    colorFeedback = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
+    malos++;
+    combo = 0;
+} else {
+    puntosBase = 10;
+    feedback = "TARDÍO";
+    // Rojo puro
+    colorFeedback = ColorRGBA.Red;
+    malos++;
+    combo = 0;
+}
         
         // Sistema de multiplicadores
         float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
