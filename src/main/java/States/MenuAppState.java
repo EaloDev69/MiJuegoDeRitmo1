@@ -414,18 +414,33 @@ public class MenuAppState extends BaseAppState {
                     analizador
                 );
             
-            // Iniciar gameplay en el thread de JME con los resultados
+            // Selección de dificultad con JOptionPane
+            String[] opciones = new String[] { "Fácil", "Normal", "Difícil" };
+            int seleccion = javax.swing.JOptionPane.showOptionDialog(
+                parentFrame,
+                "Selecciona la dificultad inicial",
+                "Dificultad",
+                javax.swing.JOptionPane.DEFAULT_OPTION,
+                javax.swing.JOptionPane.QUESTION_MESSAGE,
+                null,
+                opciones,
+                opciones[1]
+            );
+            Modelo.FlechasGenerator.Difficulty dif = Modelo.FlechasGenerator.Difficulty.NORMAL;
+            if (seleccion == 0) dif = Modelo.FlechasGenerator.Difficulty.FACIL;
+            else if (seleccion == 2) dif = Modelo.FlechasGenerator.Difficulty.DIFICIL;
+            final Modelo.FlechasGenerator.Difficulty difFinal = dif;
+            final Map<String, ResultadoAnalisis> resultadosFinal = resultados;
+
+            // Iniciar gameplay en el thread de JME con los resultados y dificultad
             juego.enqueue(() -> {
-                if (!resultados.isEmpty()) {
+                if (!resultadosFinal.isEmpty()) {
                     System.out.println("\n✓ Análisis completado - Iniciando gameplay");
-                    System.out.println("Resultados obtenidos: " + resultados.size() + " canciones");
-                    
+                    System.out.println("Resultados obtenidos: " + resultadosFinal.size() + " canciones");
                     if (modoAleatorioActivo) {
                         System.out.println("🔀 Playlist en modo ALEATORIO");
                     }
-                    
-                    // ⭐ Llamar con la lista en el orden correcto (ya mezclada si aplica)
-                    juego.startGameplay(listaFinal, resultados);
+                    juego.startGameplayConDificultad(listaFinal, resultadosFinal, difFinal);
                 } else {
                     System.out.println("\n✕ Análisis cancelado o falló");
                 }

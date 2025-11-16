@@ -36,6 +36,17 @@ public class FlechaControl extends AbstractControl {
     private boolean invertido = false;
     private float distanciaInversion;
     private float distanciaRecorrida = 0f;
+    private boolean enOrbita = false;
+    private boolean enSalida = false;
+    private float anguloOrbita = 0f;
+    private float radioOrbita = 40f;
+    private float velocidadAngular = 3.5f;
+    private float tiempoOrbita = 0f;
+    private static final float DURACION_ORBITA = 1.2f;
+    private float duracionOrbitaCfg = DURACION_ORBITA;
+    private float viewportWidth = 1280f;
+    private float viewportHeight = 720f;
+    private float inversionFlashTimer = 0f;
     
     // ⭐ NUEVO: Vector de movimiento calculado una sola vez
     private Vector3f direccionMovimiento;
@@ -108,6 +119,12 @@ public class FlechaControl extends AbstractControl {
         }
         
         actualizarEfectosVisuales(tpf);
+        if (inversionFlashTimer > 0f) {
+            inversionFlashTimer -= tpf;
+            if (inversionFlashTimer <= 0f) {
+                restaurarColorBase();
+            }
+        }
         
         if (fueGolpeada) {
             manejarFlechaGolpeada(tpf);
@@ -174,24 +191,47 @@ public class FlechaControl extends AbstractControl {
         
         // ⭐ NUEVO: Usar dirección pre-calculada para movimiento recto
         Vector3f direccion;
-        if (tipo == TipoFlecha.DORADA && invertido) {
-            // Después de invertir, se mueve en dirección opuesta
-            direccion = direccionMovimientoInvertida;
-        } else {
-            // Movimiento normal hacia el target
-            direccion = direccionMovimiento;
+        if (tipo == TipoFlecha.DORADA) {
+            if (enOrbita) {
+                tiempoOrbita += tpf;
+                anguloOrbita += velocidadAngular * tpf;
+                float x = target.x + FastMath.cos(anguloOrbita) * radioOrbita;
+                float y = target.y + FastMath.sin(anguloOrbita) * radioOrbita;
+                spatial.setLocalTranslation(x, y, spatial.getLocalTranslation().z);
+                if (tiempoOrbita >= duracionOrbitaCfg) {
+                    enSalida = true;
+                    enOrbita = false;
+                }
+                return;
+            }
+            if (enSalida) {
+                Vector3f dirSalida = spatial.getLocalTranslation().subtract(target).normalizeLocal();
+                float d = velocidad * tpf;
+                spatial.setLocalTranslation(spatial.getLocalTranslation().add(dirSalida.mult(d)));
+                distanciaRecorrida += d;
+                return;
+            }
         }
-        
+        direccion = (tipo == TipoFlecha.DORADA && invertido) ? direccionMovimientoInvertida : direccionMovimiento;
         float distanciaMovimiento = velocidad * tpf;
-        distanciaRecorrida += distanciaMovimiento;
-        
-        // ⭐ Movimiento perfectamente recto
-        Vector3f nuevaPosicion = posicionActual.add(direccion.mult(distanciaMovimiento));
-        spatial.setLocalTranslation(nuevaPosicion);
-        
-        // Verificar inversión para flechas doradas
-        if (tipo == TipoFlecha.DORADA && !invertido && distanciaRecorrida >= distanciaInversion) {
-            ejecutarInversion();
+        Vector3f toTarget = target.subtract(posicionActual);
+        float distTarget = toTarget.length();
+        if (tipo == TipoFlecha.DORADA && distTarget <= distanciaMovimiento) {
+            spatial.setLocalTranslation(target);
+            enOrbita = true;
+            invertido = false;
+            distanciaRecorrida = posicionInicial.distance(target);
+            Vector3f v = spatial.getLocalTranslation().subtract(target);
+            radioOrbita = Math.max(28f, Math.min(60f, v.length()));
+            anguloOrbita = FastMath.atan2(v.y, v.x);
+            tiempoOrbita = 0f;
+        } else {
+            distanciaRecorrida += distanciaMovimiento;
+            Vector3f nuevaPosicion = posicionActual.add(direccion.mult(distanciaMovimiento));
+            spatial.setLocalTranslation(nuevaPosicion);
+            if (tipo == TipoFlecha.DORADA && !invertido && distanciaRecorrida >= distanciaInversion) {
+                ejecutarInversion();
+            }
         }
     }
     
@@ -207,15 +247,7 @@ public class FlechaControl extends AbstractControl {
         // Flash brillante para indicar inversión
         material.setColor("Color", ColorRGBA.White.mult(2f));
         
-        // Restaurar color después de un breve momento
-        new Thread(() -> {
-            try {
-                Thread.sleep(100);
-                material.setColor("Color", colorBase.mult(1.3f));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+        inversionFlashTimer = 0.1f;
         
         System.out.println("⭐ Flecha dorada invertida: " + direccion + " → " + direccion.getOpuesta());
     }
@@ -229,19 +261,22 @@ public class FlechaControl extends AbstractControl {
         Vector3f posicionActual = spatial.getLocalTranslation();
         boolean salioDePantalla = false;
         
-        if (tipo == TipoFlecha.DORADA && invertido) {
-            // Flecha dorada invertida: verificar si salió por el borde opuesto
-            float distanciaDesdeInversion = distanciaRecorrida - distanciaInversion;
-            float distanciaMaxima = distanciaInversion * 1.5f; // 50% más de la distancia de inversión
-            
-            if (distanciaDesdeInversion > distanciaMaxima) {
-                salioDePantalla = true;
+        if (tipo == TipoFlecha.DORADA) {
+            if (enOrbita) {
+                salioDePantalla = false;
+            } else if (enSalida) {
+                float m = 100f;
+                Vector3f p = spatial.getLocalTranslation();
+                if (p.x < -m || p.x > viewportWidth + m || p.y < -m || p.y > viewportHeight + m) {
+                    salioDePantalla = true;
+                }
+            } else {
+                float distanciaTotal = posicionInicial.distance(target);
+                if (distanciaRecorrida > distanciaTotal * 1.5f) {
+                    salioDePantalla = true;
+                }
             }
         } else {
-            // Flecha normal: verificar si pasó el target
-            float distanciaAlTarget = posicionActual.distance(target);
-            
-            // Si la distancia recorrida es mayor a la distancia total + margen
             float distanciaTotal = posicionInicial.distance(target);
             if (distanciaRecorrida > distanciaTotal * 1.2f) {
                 salioDePantalla = true;
@@ -269,6 +304,17 @@ public class FlechaControl extends AbstractControl {
                 material.setColor("Color", colorBase);
                 break;
         }
+    }
+
+    public void configurarViewport(float width, float height) {
+        this.viewportWidth = width;
+        this.viewportHeight = height;
+    }
+
+    public void configurarOrbita(float radio, float velAngular, float duracion) {
+        this.radioOrbita = radio;
+        this.velocidadAngular = velAngular;
+        this.duracionOrbitaCfg = duracion;
     }
     
     // ==================== MÉTODOS PÚBLICOS ====================

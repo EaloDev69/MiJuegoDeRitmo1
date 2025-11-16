@@ -7,6 +7,8 @@ package States;
 import Modelo.*;
 import Modelo.AnalizadorCanciones.ResultadoAnalisis;
 import Controls.FlechaControl;
+import Controls.FlechaDoradaControl;
+import com.jme3.scene.control.AbstractControl;
 import UI.GameplayUI;
 import UI.VentanaResultados;
 import UI.MenuPausa;
@@ -69,6 +71,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     
     // Sistema de flechas
     private FlechasGenerator flechasGenerator;
+    private Modelo.FlechasGenerator.Difficulty dificultadInicial = Modelo.FlechasGenerator.Difficulty.NORMAL;
     private List<FlechaData> flechasAGenerar;
     private int indiceFlechaActual = 0;
     private List<Geometry> flechasActivas;
@@ -106,19 +109,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private float cooldownInput = 0.1f;
     
     // Ventanas de timing configurables
-    private static final float VENTANA_PERFECTA = 0.05f;  // 50ms
-    private static final float VENTANA_BUENA = 0.15f;     // 150ms
-    private static final float VENTANA_MALA = 0.30f;      // 300ms
-    private static final float VENTANA_MISS = 0.40f;      // 400ms
+    private static final float VENTANA_PERFECTA_BASE = 0.05f;
+    private static final float VENTANA_BUENA_BASE = 0.15f;
+    private static final float VENTANA_MALA_BASE = 0.30f;
+    private static final float VENTANA_MISS_BASE = 0.40f;
     
     // Sistema de detección de hits mejorado
-    private Set<FlechaControl> flechasProcesadas;
+    private Set<AbstractControl> flechasProcesadas;
     
     // Otros
     private Vector3f centroPantalla;
     private Map<Direccion, String> mappingTeclas;
     // Modo práctica: sin barra de vida ni game over por vida
     private boolean modoPractica = false;
+    private float latenciaInput = 0f;
     
     // ==================== CONSTRUCTOR ====================
     
@@ -148,6 +152,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         this(canciones, analisis);
         this.modoPractica = modoPractica;
     }
+
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, Modelo.FlechasGenerator.Difficulty dificultad) {
+        this(canciones, analisis);
+        if (dificultad != null) this.dificultadInicial = dificultad;
+    }
     
     // ==================== INICIALIZACIÓN ====================
     
@@ -170,6 +179,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // Inicializar sistemas
         setupInputs();
         inicializarUI();
+        flechasGenerator.setDifficulty(dificultadInicial);
         // En modo práctica ocultar barra de vida
         if (modoPractica && gameplayUI != null) {
             gameplayUI.ocultarBarraVida();
@@ -588,11 +598,64 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         System.out.println("  Flechas generadas: " + flechasAGenerar.size());
     }
 
+    private float bpmEnTiempo(float t) {
+        if (analisisActual == null || analisisActual.segmentosBpm == null || analisisActual.segmentosBpm.isEmpty()) {
+            return (float) analisisActual.getBPMEstimado();
+        }
+        for (ResultadoAnalisis.SegmentoBpm s : analisisActual.segmentosBpm) {
+            if (t >= s.inicio && t <= s.fin + 1e-4f) return s.bpm;
+        }
+        return (float) analisisActual.getBPMEstimado();
+    }
+
+    private float ventanaPerfecta(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_PERFECTA_BASE;
+        float v = interval * 0.08f;
+        if (v < 0.03f) v = 0.03f;
+        if (v > 0.08f) v = 0.08f;
+        return v;
+    }
+    private float ventanaBuena(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_BUENA_BASE;
+        float v = interval * 0.20f;
+        if (v < 0.10f) v = 0.10f;
+        if (v > 0.22f) v = 0.22f;
+        return v;
+    }
+    private float ventanaMala(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_MALA_BASE;
+        float v = interval * 0.32f;
+        if (v < 0.20f) v = 0.20f;
+        if (v > 0.35f) v = 0.35f;
+        return v;
+    }
+    private float ventanaMiss(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_MISS_BASE;
+        float v = interval * 0.42f;
+        if (v < 0.30f) v = 0.30f;
+        if (v > 0.50f) v = 0.50f;
+        return v;
+    }
+
     private void inicializarEventosEspacio() {
         if (analisisActual == null) return;
         // Usar beats lentos como eventos de ESPACIO
-        this.eventosEspacio = new ArrayList<>(analisisActual.beatsLentos);
-        Collections.sort(this.eventosEspacio);
+        List<Float> base = new ArrayList<>(analisisActual.beatsLentos);
+        Collections.sort(base);
+        List<Float> filtrados = new ArrayList<>();
+        float minSep = 4.0f;
+        float ultimo = -1e6f;
+        for (float e : base) {
+            if (e - ultimo >= minSep) {
+                filtrados.add(e);
+                ultimo = e;
+            }
+        }
+        this.eventosEspacio = filtrados;
         this.indiceEventoEspacio = 0;
         this.blink1Disparado = false;
         this.blink2Disparado = false;
@@ -643,17 +706,39 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         tiempoRestante = Math.max(0.05f, tiempoRestante);
         float velocidadDinamica = distancia / tiempoRestante;
 
-        FlechaControl control = new FlechaControl(
-            flechaData.getTipo(),
-            flechaData.getDireccion(),
-            posInicial,
-            posTarget,
-            velocidadDinamica,
-            flechaData.getBeatTime(),
-            mat
-        );
-        
-        flechaGeom.addControl(control);
+        if (flechaData.getTipo() == TipoFlecha.DORADA) {
+            FlechaDoradaControl control = new FlechaDoradaControl(
+                flechaData.getTipo(),
+                flechaData.getDireccion(),
+                posInicial,
+                posTarget,
+                velocidadDinamica,
+                flechaData.getBeatTime(),
+                mat
+            );
+            flechaGeom.addControl(control);
+            control.configurarViewport(ancho, alto);
+            float bpmLocal = bpmEnTiempo(flechaData.getBeatTime());
+            float velAng = 3.5f;
+            if (bpmLocal > 0f) {
+                float base = Math.min(6.0f, Math.max(2.5f, (bpmLocal / 120f) * 3.5f));
+                velAng = base;
+            }
+            float radio = Math.max(28f, Math.min(60f, tamano * 0.9f));
+            control.configurarOrbita(radio, velAng, 1.2f);
+        } else {
+            FlechaControl control = new FlechaControl(
+                flechaData.getTipo(),
+                flechaData.getDireccion(),
+                posInicial,
+                posTarget,
+                velocidadDinamica,
+                flechaData.getBeatTime(),
+                mat
+            );
+            flechaGeom.addControl(control);
+            control.configurarViewport(ancho, alto);
+        }
         gameNode.attachChild(flechaGeom);
         flechasActivas.add(flechaGeom);
     }
@@ -662,18 +747,34 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         Iterator<Geometry> iterator = flechasActivas.iterator();
         while (iterator.hasNext()) {
             Geometry flecha = iterator.next();
-            FlechaControl control = flecha.getControl(FlechaControl.class);
-            
-            if (control != null && control.fueErrada() && !control.fueGolpeada()) {
-                if (!flechasProcesadas.contains(control)) {
-                    registrarMiss();
-                    flechasProcesadas.add(control);
-                }
-                flecha.removeFromParent();
-                iterator.remove();
-            } else if (control != null && control.fueGolpeada()) {
-                if (flecha.getParent() == null) {
+            FlechaControl controlN = flecha.getControl(FlechaControl.class);
+            FlechaDoradaControl controlD = flecha.getControl(FlechaDoradaControl.class);
+            AbstractControl control = controlN != null ? controlN : controlD;
+            if (controlN != null) {
+                if (controlN.fueErrada() && !controlN.fueGolpeada()) {
+                    if (!flechasProcesadas.contains(control)) {
+                        registrarMiss();
+                        flechasProcesadas.add(control);
+                    }
+                    flecha.removeFromParent();
                     iterator.remove();
+                } else if (controlN.fueGolpeada()) {
+                    if (flecha.getParent() == null) {
+                        iterator.remove();
+                    }
+                }
+            } else if (controlD != null) {
+                if (controlD.fueErrada() && !controlD.fueGolpeada()) {
+                    if (!flechasProcesadas.contains(control)) {
+                        registrarMiss();
+                        flechasProcesadas.add(control);
+                    }
+                    flecha.removeFromParent();
+                    iterator.remove();
+                } else if (controlD.fueGolpeada()) {
+                    if (flecha.getParent() == null) {
+                        iterator.remove();
+                    }
                 }
             }
         }
@@ -720,9 +821,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         app.getInputManager().addMapping("Espacio", 
             new KeyTrigger(KeyInput.KEY_SPACE)
         );
+
+        app.getInputManager().addMapping("DificultadFacil",
+            new KeyTrigger(KeyInput.KEY_1)
+        );
+        app.getInputManager().addMapping("DificultadNormal",
+            new KeyTrigger(KeyInput.KEY_2)
+        );
+        app.getInputManager().addMapping("DificultadDificil",
+            new KeyTrigger(KeyInput.KEY_3)
+        );
         
         app.getInputManager().addListener(this, 
-            "Arriba", "Abajo", "Izquierda", "Derecha", "Espacio");
+            "Arriba", "Abajo", "Izquierda", "Derecha", "Espacio",
+            "DificultadFacil", "DificultadNormal", "DificultadDificil");
         
         System.out.println("✓ Inputs configurados:");
         System.out.println("  ARRIBA:    W o ↑");
@@ -730,13 +842,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         System.out.println("  IZQUIERDA: A o ←");
         System.out.println("  DERECHA:   D o →");
         System.out.println("  ESPECIAL:  ESPACIO");
+        System.out.println("  DIFICULTAD: 1=Fácil, 2=Normal, 3=Difícil");
     }
     
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
         if (menuPausa != null && menuPausa.estaPausado()) return;
         if (juegoTerminado) return;
-        
+
+        if (isPressed) {
+            if ("DificultadFacil".equals(name)) { setDifficulty(Modelo.FlechasGenerator.Difficulty.FACIL); return; }
+            if ("DificultadNormal".equals(name)) { setDifficulty(Modelo.FlechasGenerator.Difficulty.NORMAL); return; }
+            if ("DificultadDificil".equals(name)) { setDifficulty(Modelo.FlechasGenerator.Difficulty.DIFICIL); return; }
+        }
+
         Direccion direccion = obtenerDireccionDesdeTecla(name);
         if (direccion != null) {
             teclasPresionadas.put(direccion, isPressed);
@@ -745,6 +864,18 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 procesarInputInmediato(direccion);
             }
         }
+    }
+
+    public void setDifficulty(Modelo.FlechasGenerator.Difficulty d) {
+        if (flechasGenerator == null || analisisActual == null) return;
+        flechasGenerator.setDifficulty(d);
+        List<FlechaData> nuevas = flechasGenerator.generarFlechasCompletas(analisisActual);
+        int idx = 0;
+        float umbral = tiempoTranscurrido - tiempoAnticipacion - 0.01f;
+        while (idx < nuevas.size() && nuevas.get(idx).getBeatTime() < umbral) idx++;
+        flechasAGenerar = nuevas;
+        indiceFlechaActual = idx;
+        System.out.println("  ⚙ Dificultad cambiada a " + d + ", flechas disponibles: " + flechasAGenerar.size());
     }
     
     /**
@@ -768,16 +899,26 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
         
         // Buscar flecha válida
-        FlechaControl flechaObjetivo = encontrarMejorFlecha(direccion);
-        
-        if (flechaObjetivo != null) {
-            float delay = flechaObjetivo.calcularDelay(tiempoTranscurrido);
-            
-            if (delay <= VENTANA_MALA) {
-                evaluarHit(flechaObjetivo, delay);
-                flechaObjetivo.brillar();
-                ultimoTiempoInput.put(direccion, tiempoTranscurrido);
-                flechasProcesadas.add(flechaObjetivo);
+        AbstractControl control = encontrarMejorFlechaControl(direccion);
+        if (control != null) {
+            if (control instanceof FlechaControl) {
+                FlechaControl c = (FlechaControl) control;
+                float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                if (delay <= ventanaMala(c.getBeatTime())) {
+                    evaluarHit(c, delay);
+                    c.brillar();
+                    ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+                    flechasProcesadas.add(control);
+                }
+            } else if (control instanceof FlechaDoradaControl) {
+                FlechaDoradaControl c = (FlechaDoradaControl) control;
+                float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                if (delay <= ventanaMala(c.getBeatTime())) {
+                    evaluarHitDorada(c, delay);
+                    c.brillar();
+                    ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+                    flechasProcesadas.add(control);
+                }
             }
         }
     }
@@ -786,19 +927,25 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         if (eventosEspacio == null || indiceEventoEspacio >= eventosEspacio.size()) return;
         float evento = eventosEspacio.get(indiceEventoEspacio);
         float t = tiempoTranscurrido;
-        
+
         // Programar doble parpadeo: 0.6s y 0.1s antes del evento
         if (!blink1Disparado && t >= evento - 0.6f) {
-            if (gameplayUI != null) gameplayUI.activarBrilloEspacio();
+            if (gameplayUI != null) {
+                gameplayUI.activarBrilloEspacio();
+                gameplayUI.activarBaileEspacio(0.8f);
+            }
             blink1Disparado = true;
         }
         if (!blink2Disparado && t >= evento - 0.1f) {
-            if (gameplayUI != null) gameplayUI.activarBrilloEspacio();
+            if (gameplayUI != null) {
+                gameplayUI.activarBrilloEspacio();
+                gameplayUI.activarBaileEspacio(0.6f);
+            }
             blink2Disparado = true;
         }
-        
+
         // Registrar miss si pasó la ventana
-        if (t > evento + VENTANA_MISS) {
+        if (t > evento + ventanaMiss(evento)) {
             registrarMiss();
             avanzarEventoEspacio();
         }
@@ -807,8 +954,8 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private boolean evaluarHitEspacioSiDentroVentana() {
         if (eventosEspacio == null || indiceEventoEspacio >= eventosEspacio.size()) return false;
         float evento = eventosEspacio.get(indiceEventoEspacio);
-        float delay = Math.abs(tiempoTranscurrido - evento);
-        if (delay <= VENTANA_MALA) {
+        float delay = Math.abs((tiempoTranscurrido + latenciaInput) - evento);
+        if (delay <= ventanaMala(evento)) {
             evaluarHitEspacio(delay);
             avanzarEventoEspacio();
             return true;
@@ -829,7 +976,8 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         ColorRGBA colorFeedback;
         boolean perfectHit = false;
         
-        if (delay <= VENTANA_PERFECTA) {
+        float ref = (eventosEspacio != null && indiceEventoEspacio < eventosEspacio.size()) ? eventosEspacio.get(indiceEventoEspacio) : tiempoTranscurrido;
+        if (delay <= ventanaPerfecta(ref)) {
             puntosBase = 100;
             feedback = "¡PERFECTO!";
             colorFeedback = new ColorRGBA(0.8f, 0.8f, 1f, 1);
@@ -840,13 +988,13 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 puntosBase = 150;
                 feedback = "¡¡IMPECABLE!!";
             }
-        } else if (delay <= VENTANA_BUENA) {
+        } else if (delay <= ventanaBuena(ref)) {
             puntosBase = 50;
             feedback = "BUENO";
             colorFeedback = ColorRGBA.Yellow;
             buenos++;
             combo++;
-        } else if (delay <= VENTANA_MALA) {
+        } else if (delay <= ventanaMala(ref)) {
             puntosBase = 20;
             feedback = "MALO";
             colorFeedback = ColorRGBA.Orange;
@@ -869,7 +1017,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         score += puntos;
         if (combo > maxCombo) maxCombo = combo;
         // Recuperar vida en perfect (si no es práctica)
-        if (!modoPractica && delay <= VENTANA_PERFECTA) {
+        if (!modoPractica && delay <= ventanaPerfecta(ref)) {
             vida = Math.min(100, vida + 2);
             if (gameplayUI != null) gameplayUI.actualizarVida(vida);
         }
@@ -891,14 +1039,26 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 float ultimoTiempo = ultimoTiempoInput.get(dir);
                 
                 if (tiempoTranscurrido - ultimoTiempo >= cooldownInput) {
-                    FlechaControl flecha = encontrarMejorFlecha(dir);
-                    if (flecha != null && !flechasProcesadas.contains(flecha)) {
-                        float delay = flecha.calcularDelay(tiempoTranscurrido);
-                        if (delay <= VENTANA_MALA) {
-                            evaluarHit(flecha, delay);
-                            flecha.brillar();
-                            ultimoTiempoInput.put(dir, tiempoTranscurrido);
-                            flechasProcesadas.add(flecha);
+                    AbstractControl control = encontrarMejorFlechaControl(dir);
+                    if (control != null && !flechasProcesadas.contains(control)) {
+                        if (control instanceof FlechaControl) {
+                            FlechaControl c = (FlechaControl) control;
+                            float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                            if (delay <= ventanaMala(c.getBeatTime())) {
+                                evaluarHit(c, delay);
+                                c.brillar();
+                                ultimoTiempoInput.put(dir, tiempoTranscurrido);
+                                flechasProcesadas.add(control);
+                            }
+                        } else if (control instanceof FlechaDoradaControl) {
+                            FlechaDoradaControl c = (FlechaDoradaControl) control;
+                            float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                            if (delay <= ventanaMala(c.getBeatTime())) {
+                                evaluarHitDorada(c, delay);
+                                c.brillar();
+                                ultimoTiempoInput.put(dir, tiempoTranscurrido);
+                                flechasProcesadas.add(control);
+                            }
                         }
                     }
                 }
@@ -906,38 +1066,43 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    private FlechaControl encontrarMejorFlecha(Direccion direccion) {
-        FlechaControl mejorFlecha = null;
+    private AbstractControl encontrarMejorFlechaControl(Direccion direccion) {
+        AbstractControl mejor = null;
         float menorDelay = Float.MAX_VALUE;
-        
         for (Geometry flecha : flechasActivas) {
-            FlechaControl control = flecha.getControl(FlechaControl.class);
-            if (control == null || control.fueGolpeada() || control.fueErrada()) {
-                continue;
-            }
-            
-            if (flechasProcesadas.contains(control)) {
-                continue;
-            }
-            
-            Direccion direccionFlecha = control.getDireccion();
-            
-            // Manejar flechas invertidas (doradas)
-            if (control.getTipo() == TipoFlecha.DORADA && control.estaInvertida()) {
-                direccionFlecha = direccionFlecha.getOpuesta();
-            }
-            
-            if (direccionFlecha == direccion) {
-                float delay = Math.abs(control.calcularDelay(tiempoTranscurrido));
-                
-                if (delay <= VENTANA_MALA && delay < menorDelay) {
-                    menorDelay = delay;
-                    mejorFlecha = control;
+            FlechaControl controlN = flecha.getControl(FlechaControl.class);
+            FlechaDoradaControl controlD = flecha.getControl(FlechaDoradaControl.class);
+            if (controlN != null) {
+                if (controlN.fueGolpeada() || controlN.fueErrada()) continue;
+                if (flechasProcesadas.contains(controlN)) continue;
+                Direccion dirF = controlN.getDireccion();
+                if (controlN.getTipo() == TipoFlecha.DORADA && controlN.estaInvertida()) {
+                    dirF = dirF.getOpuesta();
+                }
+                if (dirF == direccion) {
+                    float delay = Math.abs(controlN.calcularDelay(tiempoTranscurrido + latenciaInput));
+                    if (delay <= ventanaMala(controlN.getBeatTime()) && delay < menorDelay) {
+                        menorDelay = delay;
+                        mejor = controlN;
+                    }
+                }
+            } else if (controlD != null) {
+                if (controlD.fueGolpeada() || controlD.fueErrada()) continue;
+                if (flechasProcesadas.contains(controlD)) continue;
+                Direccion dirF = controlD.getDireccion();
+                if (controlD.getTipo() == TipoFlecha.DORADA && controlD.estaInvertida()) {
+                    dirF = dirF.getOpuesta();
+                }
+                if (dirF == direccion) {
+                    float delay = Math.abs(controlD.calcularDelay(tiempoTranscurrido + latenciaInput));
+                    if (delay <= ventanaMala(controlD.getBeatTime()) && delay < menorDelay) {
+                        menorDelay = delay;
+                        mejor = controlD;
+                    }
                 }
             }
         }
-        
-        return mejorFlecha;
+        return mejor;
     }
     
     private Direccion obtenerDireccionDesdeTecla(String nombreTecla) {
@@ -962,7 +1127,10 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         ColorRGBA colorFeedback;
         boolean perfectHit = false;
         
-        if (delay <= VENTANA_PERFECTA) {
+        float vp = ventanaPerfecta(flecha.getBeatTime());
+        float vb = ventanaBuena(flecha.getBeatTime());
+        float vm = ventanaMala(flecha.getBeatTime());
+        if (delay <= vp) {
             puntosBase = 100;
             feedback = "¡PERFECTO!";
             colorFeedback = new ColorRGBA(0, 1, 0.5f, 1);
@@ -975,14 +1143,14 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 feedback = "¡¡IMPECABLE!!";
             }
             
-        } else if (delay <= VENTANA_BUENA) {
+        } else if (delay <= vb) {
             puntosBase = 50;
             feedback = "BUENO";
             colorFeedback = ColorRGBA.Yellow;
             buenos++;
             combo++;
             
-        } else if (delay <= VENTANA_MALA) {
+        } else if (delay <= vm) {
             puntosBase = 20;
             feedback = "MALO";
             colorFeedback = ColorRGBA.Orange;
@@ -1020,7 +1188,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         // Recuperar vida con perfectos consecutivos
         // Recuperar vida en perfect (si no es práctica)
-        if (!modoPractica && delay <= VENTANA_PERFECTA) {
+        if (!modoPractica && delay <= vp) {
             vida = Math.min(100, vida + 2);
             if (gameplayUI != null) {
                 gameplayUI.actualizarVida(vida);
@@ -1044,6 +1212,30 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
         
         // Marcar flecha como golpeada
+        flecha.marcarComoGolpeada();
+    }
+
+    private void evaluarHitDorada(FlechaDoradaControl flecha, float delay) {
+        delay = Math.abs(delay);
+        int puntosBase;
+        String feedback;
+        ColorRGBA colorFeedback;
+        boolean perfectHit = false;
+        float vp = ventanaPerfecta(flecha.getBeatTime());
+        float vb = ventanaBuena(flecha.getBeatTime());
+        float vm = ventanaMala(flecha.getBeatTime());
+        if (delay <= vp) { puntosBase = 100; feedback = "¡PERFECTO!"; colorFeedback = new ColorRGBA(0, 1, 0.5f, 1); perfectos++; combo++; perfectHit = true; if (delay <= 0.02f) { puntosBase = 150; feedback = "¡¡IMPECABLE!!"; } }
+        else if (delay <= vb) { puntosBase = 50; feedback = "BUENO"; colorFeedback = ColorRGBA.Yellow; buenos++; combo++; }
+        else if (delay <= vm) { puntosBase = 20; feedback = "MALO"; colorFeedback = ColorRGBA.Orange; malos++; combo = 0; }
+        else { puntosBase = 10; feedback = "TARDÍO"; colorFeedback = ColorRGBA.Red; malos++; combo = 0; }
+        float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
+        if (combo > 5) { multiplicador *= (1 + combo * 0.05f); }
+        if (perfectos >= 10 && buenos == 0 && malos == 0) { multiplicador *= 1.5f; if (perfectos % 10 == 0) { feedback = "¡RACHA PERFECTA x" + perfectos + "!"; } }
+        int puntos = (int)(puntosBase * multiplicador);
+        score += puntos;
+        if (combo > maxCombo) { maxCombo = combo; }
+        if (!modoPractica && delay <= vp) { vida = Math.min(100, vida + 2); if (gameplayUI != null) { gameplayUI.actualizarVida(vida); } }
+        if (gameplayUI != null) { gameplayUI.actualizarScore(score); gameplayUI.mostrarFeedback(feedback, colorFeedback); gameplayUI.actualizarCombo(combo); ColorRGBA colorFlecha = flecha.getDireccion().getColor(); gameplayUI.activarBrilloHit(colorFlecha); if (perfectHit && puntos > 100) { gameplayUI.mostrarBonusPuntos(puntos); } }
         flecha.marcarComoGolpeada();
     }
     
