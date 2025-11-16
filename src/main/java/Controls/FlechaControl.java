@@ -55,7 +55,7 @@ public class FlechaControl extends AbstractControl {
     // ==================== EFECTOS VISUALES ====================
     private boolean brilloActivo = false;
     private float tiempoBrillo = 0f;
-    private static final float DURACION_BRILLO = 0.3f;
+    private static final float DURACION_BRILLO = 0.5f;
     private float tiempoBrilloPulsante = 0f;
     private float tiempoBrilloLuna = 0f;
     private ColorRGBA colorBase;
@@ -169,16 +169,43 @@ public class FlechaControl extends AbstractControl {
     }
     
     private void manejarFlechaGolpeada(float tpf) {
-        tiempoBrillo += tpf;
+    tiempoBrillo += tpf;
+    
+    if (tiempoBrillo < DURACION_BRILLO) {
+        float progreso = tiempoBrillo / DURACION_BRILLO; // 0.0 a 1.0
         
-        if (tiempoBrillo < DURACION_BRILLO) {
-            float escala = 1f - (tiempoBrillo / DURACION_BRILLO);
-            escala = Math.max(escala, 0.1f);
-            spatial.setLocalScale(escala);
+        // === EFECTO 1: Brillo que desvanece ===
+        float intensidadBrillo;
+        if (progreso < 0.2f) {
+            // Primeros 20%: Máximo brillo (flash blanco)
+            intensidadBrillo = 4.0f;
         } else {
-            spatial.removeFromParent();
+            // Resto: Desvanecimiento gradual
+            intensidadBrillo = 4.0f * (1f - ((progreso - 0.2f) / 0.8f));
         }
+        
+        // Aplicar color con brillo
+        ColorRGBA colorBrillante = ColorRGBA.White.mult(intensidadBrillo);
+        material.setColor("Color", colorBrillante);
+        
+        // === EFECTO 2: Escala que crece y luego desaparece ===
+        float escala;
+        if (progreso < 0.3f) {
+            // Primeros 30%: Expandirse (1.0 → 1.5)
+            escala = 1f + (progreso / 0.3f) * 0.5f;
+        } else {
+            // Resto: Contraerse hasta desaparecer (1.5 → 0.1)
+            float t = (progreso - 0.3f) / 0.7f;
+            escala = 1.5f - (t * 1.4f);
+            escala = Math.max(escala, 0.1f);
+        }
+        spatial.setLocalScale(escala);
+        
+    } else {
+        // Terminar animación
+        spatial.removeFromParent();
     }
+}
     
     /**
      * ⭐ MEJORADO: Movimiento en línea recta constante
@@ -320,12 +347,20 @@ public class FlechaControl extends AbstractControl {
     // ==================== MÉTODOS PÚBLICOS ====================
     
     public void brillar() {
-        brilloActivo = true;
-        tiempoBrillo = 0f;
-        fueGolpeada = true;
-        material.setColor("Color", ColorRGBA.White.mult(2.5f));
-        System.out.println("✨ Flecha golpeada: " + tipo + " " + direccion);
+    brilloActivo = true;
+    tiempoBrillo = 0f;
+    fueGolpeada = true;
+    
+    // ⭐ BRILLO INICIAL SUPER INTENSO
+    material.setColor("Color", ColorRGBA.White.mult(4.0f));
+    
+    // Aumentar tamaño para efecto "explosión"
+    if (spatial != null) {
+        spatial.setLocalScale(1.3f);
     }
+    
+    System.out.println("✨💥 Flecha golpeada con BRILLO INTENSO: " + tipo + " " + direccion);
+}
     
     public void marcarComoErrada() {
         fueErrada = true;

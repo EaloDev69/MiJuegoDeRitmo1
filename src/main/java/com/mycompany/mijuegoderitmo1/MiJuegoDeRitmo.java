@@ -156,6 +156,28 @@ public class MiJuegoDeRitmo extends SimpleApplication {
     /**
      * Inicia el gameplay en modo práctica (sin barra de vida ni game over por vida)
      */
+    public void startGameplayContinuo(List<String> cancionesSeleccionadas,
+                                   Map<String, ResultadoAnalisis> resultados) {
+    System.out.println("\n=== INICIANDO GAMEPLAY CONTINUO 🔁 ===");
+    System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
+
+    // Limpiar el menú
+    if (menuAppStates != null) {
+        System.out.println(" - Desvinculando menú...");
+        stateManager.detach(menuAppStates);
+    }
+    gameplayAppState = new GameplayAppState(
+        cancionesSeleccionadas, 
+        resultados,
+        false,  // modoPractica = false
+        true    // ⭐ modoContinuo = TRUE (esto es la clave)
+    );
+    
+    stateManager.attach(gameplayAppState);
+    System.out.println("✓ Gameplay continuo iniciado correctamente");
+}
+    
+
     public void startGameplayPractica(List<String> cancionesSeleccionadas,
                                       Map<String, ResultadoAnalisis> resultados) {
         System.out.println("\n=== INICIANDO MODO PRÁCTICA ===");
