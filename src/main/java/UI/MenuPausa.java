@@ -8,11 +8,14 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.font.BitmapFont;
 import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
+import com.jme3.input.MouseInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
+import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.material.Material;
 import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector2f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Quad;
@@ -198,6 +201,7 @@ public class MenuPausa {
         app.getInputManager().addMapping("MenuArriba", new KeyTrigger(KeyInput.KEY_UP));
         app.getInputManager().addMapping("MenuAbajo", new KeyTrigger(KeyInput.KEY_DOWN));
         app.getInputManager().addMapping("MenuSeleccionar", new KeyTrigger(KeyInput.KEY_RETURN));
+        app.getInputManager().addMapping("MenuClick", new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
 
         // ⭐ CRÍTICO: Listener que verifica el estado de pausa antes de ejecutar acciones
         inputListener = (name, isPressed, tpf) -> {
@@ -228,10 +232,16 @@ public class MenuPausa {
                         ejecutarBotonSeleccionado();
                     }
                     break;
+                case "MenuClick":
+                    if (pausado) {
+                        System.out.println("🖱 Click en menú de pausa");
+                        manejarClick();
+                    }
+                    break;
             }
         };
 
-        app.getInputManager().addListener(inputListener, "Pausa", "MenuArriba", "MenuAbajo", "MenuSeleccionar");
+        app.getInputManager().addListener(inputListener, "Pausa", "MenuArriba", "MenuAbajo", "MenuSeleccionar", "MenuClick");
 
         System.out.println("✓ Inputs de MenuPausa configurados");
         System.out.println("  - ESC ahora controla la pausa (no cierra la app)");
@@ -403,6 +413,27 @@ public class MenuPausa {
             boton.accion.run();
             
             System.out.println("  - Estado pausado después: " + pausado + "\n");
+        }
+    }
+
+    private void manejarClick() {
+        Vector2f cursor = app.getInputManager().getCursorPosition();
+        for (int i = 0; i < botones.size(); i++) {
+            BotonMenu b = botones.get(i);
+            float x = b.texto.getLocalTranslation().x;
+            float y = b.texto.getLocalTranslation().y;
+            float w = b.texto.getLineWidth();
+            float h = 40f;
+            float left = x;
+            float right = x + w;
+            float bottom = y - h;
+            float top = y + 10f;
+            if (cursor.x >= left && cursor.x <= right && cursor.y >= bottom && cursor.y <= top) {
+                botonSeleccionado = i;
+                actualizarSeleccionVisual();
+                ejecutarBotonSeleccionado();
+                break;
+            }
         }
     }
 

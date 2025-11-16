@@ -7,6 +7,8 @@ package States;
 import Modelo.*;
 import Modelo.AnalizadorCanciones.ResultadoAnalisis;
 import Controls.FlechaControl;
+import Controls.FlechaDoradaControl;
+import com.jme3.scene.control.AbstractControl;
 import UI.GameplayUI;
 import UI.VentanaResultados;
 import UI.MenuPausa;
@@ -34,10 +36,15 @@ import com.mycompany.mijuegoderitmo1.MiJuegoDeRitmo;
 import java.util.*;
 import javax.swing.SwingUtilities;
 import com.jme3.app.SimpleApplication;
+import com.jme3.texture.Texture;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
-
+import java.nio.ByteBuffer;
+import java.util.Random;
+import com.jme3.texture.Texture2D;
+import com.jme3.util.BufferUtils;
+import com.jme3.texture.Image;
 /**
  * GameplayAppState - Sistema de juego completo con mejoras visuales
  * ✅ Sistema de input mejorado con WASD + Flechas
@@ -69,9 +76,16 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     
     // Sistema de flechas
     private FlechasGenerator flechasGenerator;
+    private Modelo.FlechasGenerator.Difficulty dificultadInicial = Modelo.FlechasGenerator.Difficulty.NORMAL;
     private List<FlechaData> flechasAGenerar;
     private int indiceFlechaActual = 0;
     private List<Geometry> flechasActivas;
+
+    // Mecánica ESPACIO (parpadeos dobles sin flechas)
+    private List<Float> eventosEspacio;
+    private int indiceEventoEspacio = 0;
+    private boolean blink1Disparado = false;
+    private boolean blink2Disparado = false;
     
     // Sistema de playlist
     private List<String> canciones;
@@ -79,6 +93,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int cancionActual = 0;
     private AudioNode audioNode;
     private ResultadoAnalisis analisisActual;
+    private FlechaProceduralGenerator flechaGenerator;
     
     // Timing
     private float tiempoTranscurrido = 0f;
@@ -100,40 +115,74 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private float cooldownInput = 0.1f;
     
     // Ventanas de timing configurables
-    private static final float VENTANA_PERFECTA = 0.05f;  // 50ms
-    private static final float VENTANA_BUENA = 0.15f;     // 150ms
-    private static final float VENTANA_MALA = 0.30f;      // 300ms
-    private static final float VENTANA_MISS = 0.40f;      // 400ms
+    private static final float VENTANA_PERFECTA_BASE = 0.05f;
+    private static final float VENTANA_BUENA_BASE = 0.15f;
+    private static final float VENTANA_MALA_BASE = 0.30f;
+    private static final float VENTANA_MISS_BASE = 0.40f;
     
     // Sistema de detección de hits mejorado
-    private Set<FlechaControl> flechasProcesadas;
+    private Set<AbstractControl> flechasProcesadas;
     
     // Otros
     private Vector3f centroPantalla;
     private Map<Direccion, String> mappingTeclas;
+    // Modo práctica: sin barra de vida ni game over por vida
+    private boolean modoPractica = false;
+    private float latenciaInput = 0f;
     
     // ==================== CONSTRUCTOR ====================
     
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis) {
-        this.canciones = canciones;
-        this.analisisCompleto = analisis;
-        this.flechasActivas = new ArrayList<>();
-        this.flechasGenerator = new FlechasGenerator();
-        this.teclasPresionadas = new EnumMap<>(Direccion.class);
-        this.ultimoTiempoInput = new EnumMap<>(Direccion.class);
-        this.flechasProcesadas = new HashSet<>();
-        
-        // Inicializar estados de teclas
-        for (Direccion dir : Direccion.values()) {
-            teclasPresionadas.put(dir, false);
-            ultimoTiempoInput.put(dir, 0f);
-        }
-        
-        if (!canciones.isEmpty()) {
-            String primerCancion = canciones.get(0);
-            this.analisisActual = analisis.get(primerCancion);
-        }
+    // ==================== CONSTRUCTORES ====================
+
+/**
+ * Constructor PRINCIPAL con todos los parámetros
+ */
+public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, 
+                       boolean modoPractica, boolean modoContinuo) {
+    this.canciones = canciones;
+    this.analisisCompleto = analisis;
+    this.modoPractica = modoPractica;
+    this.modoContinuo = modoContinuo;
+    
+    this.flechasActivas = new ArrayList<>();
+    this.flechasGenerator = new FlechasGenerator();
+    this.teclasPresionadas = new EnumMap<>(Direccion.class);
+    this.ultimoTiempoInput = new EnumMap<>(Direccion.class);
+    this.flechasProcesadas = new HashSet<>();
+
+    for (Direccion dir : Direccion.values()) {
+        teclasPresionadas.put(dir, false);
+        ultimoTiempoInput.put(dir, 0f);
     }
+
+    if (!canciones.isEmpty()) {
+        String primerCancion = canciones.get(0);
+        this.analisisActual = analisis.get(primerCancion);
+    }
+
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, Modelo.FlechasGenerator.Difficulty dificultad) {
+        this(canciones, analisis);
+        if (dificultad != null) this.dificultadInicial = dificultad;
+    }
+    
+    System.out.println("🎮 GameplayAppState creado:");
+    System.out.println("  Modo: " + (modoContinuo ? "PLAYLIST CONTINUA 🔁" : "CON RESULTADOS 📊"));
+    System.out.println("  Canciones: " + canciones.size());
+}
+
+/**
+ * Constructor con modo práctica (sin modo continuo)
+ */
+public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, boolean modoPractica) {
+    this(canciones, analisis, modoPractica, false); // false = modo normal sin continuidad
+}
+
+/**
+ * Constructor básico (sin modo práctica ni continuo)
+ */
+public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis) {
+    this(canciones, analisis, false, false);
+}
     
     // ==================== INICIALIZACIÓN ====================
     
@@ -142,70 +191,254 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         this.app = (MiJuegoDeRitmo) app;
         this.assetManager = app.getAssetManager();
         this.gameNode = new Node("GameNode");
-        
-        // Deshabilitar cámara voladora
+        this.flechaGenerator = new FlechaProceduralGenerator(assetManager);
+
         this.app.getFlyByCamera().setEnabled(false);
-        
-        // Configurar cámara 2D
+
         configurarCamara2D();
-        
-        // Crear elementos visuales
         crearFondo();
         crearProtagonista();
-        
-        // Inicializar sistemas
+        crearZonasDeImpacto();
+
         setupInputs();
         inicializarUI();
+        flechasGenerator.setDifficulty(dificultadInicial);
+        // En modo práctica ocultar barra de vida
+        if (modoPractica && gameplayUI != null) {
+            gameplayUI.ocultarBarraVida();
+        }
+
         generarFlechasCancion();
+        inicializarEventosEspacio();
         reproducirCancionActual();
-        
+
         System.out.println("✓ Gameplay inicializado correctamente");
+    }
+     private void crearZonasDeImpacto() {
+        Node nodoZonas = new Node("ZonasImpacto");
+        
+        float ancho = app.getCamera().getWidth();
+        float alto = app.getCamera().getHeight();
+        float centroX = ancho / 2f;
+        float centroY = alto / 2f;
+        
+        float tamanoZona = 80f;
+        float separacion = 120f; // Distancia desde el centro
+        
+        System.out.println("🎯 Creando zonas de impacto...");
+        
+        // Zona ARRIBA
+        crearZonaFlecha(nodoZonas, Direccion.ARRIBA, centroX, centroY + separacion, tamanoZona);
+        
+        // Zona ABAJO
+        crearZonaFlecha(nodoZonas, Direccion.ABAJO, centroX, centroY - separacion, tamanoZona);
+        
+        // Zona IZQUIERDA
+        crearZonaFlecha(nodoZonas, Direccion.IZQUIERDA, centroX + separacion, centroY, tamanoZona);
+        System.out.println("   ← IZQUIERDA posicionada en X=" + (centroX + separacion));
+    
+        // Zona DERECHA
+        crearZonaFlecha(nodoZonas, Direccion.DERECHA, centroX - separacion, centroY, tamanoZona);
+        System.out.println("   → DERECHA posicionada en X=" + (centroX - separacion));
+    
+        // Zona ESPACIO (centro)
+         crearZonaEspacio(nodoZonas, centroX, centroY, tamanoZona);
+        
+        app.getGuiNode().attachChild(nodoZonas);
+        System.out.println("✓ Zonas de impacto creadas: 5 zonas");
+    }
+     
+     
+    private void crearZonaFlecha(Node parent, Direccion direccion, float x, float y, float tamano) {
+        Texture textura = flechaGenerator.crearTexturaZonaFlecha(
+            direccion,
+            FlechaProceduralGenerator.ZONA_BORDE_DEFAULT,
+            FlechaProceduralGenerator.ZONA_FONDO_DEFAULT
+        );
+        
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setTexture("ColorMap", textura);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        Geometry zona = new Geometry("Zona_" + direccion.name(), new Quad(tamano, tamano));
+        zona.setMaterial(mat);
+        zona.setLocalTranslation(x - tamano/2, y - tamano/2, 0.5f); // Z más bajo que flechas
+        
+        parent.attachChild(zona);
+    }
+    private void crearZonaEspacio(Node parent, float x, float y, float tamano) {
+        Texture textura = flechaGenerator.crearTexturaZonaEspacio(
+            FlechaProceduralGenerator.ZONA_BORDE_ESPACIO,
+            FlechaProceduralGenerator.ZONA_FONDO_ESPACIO
+        );
+        
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setTexture("ColorMap", textura);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        Geometry zona = new Geometry("Zona_ESPACIO", new Quad(tamano, tamano));
+        zona.setMaterial(mat);
+        zona.setLocalTranslation(x - tamano/2, y - tamano/2, 0.5f);
+        
+        parent.attachChild(zona);
     }
     
     private void configurarCamara2D() {
         float ancho = app.getCamera().getWidth();
         float alto = app.getCamera().getHeight();
         centroPantalla = new Vector3f(ancho / 2, alto / 2, 0);
-        
         app.getCamera().setParallelProjection(true);
-        
-        // Ampliar el área visible (frustum más grande)
         float factorAmplificacion = 1.5f;
         float aspect = (float) app.getCamera().getWidth() / app.getCamera().getHeight();
-        
         float altoVisible = alto * factorAmplificacion;
         float anchoVisible = ancho * factorAmplificacion;
-        
-        app.getCamera().setFrustum(
-            -1000, 1000, 
-            -aspect * altoVisible / 2,
-            aspect * altoVisible / 2,
-            altoVisible / 2,
-            -altoVisible / 2
-        );
-        
-        System.out.println("📐 Área de juego ampliada:");
-        System.out.println("  Ventana física: " + ancho + "x" + alto);
-        System.out.println("  Área visible: " + anchoVisible + "x" + altoVisible);
+        app.getCamera().setFrustum(-1000, 1000, -aspect * altoVisible / 2, aspect * altoVisible / 2, altoVisible / 2, -altoVisible / 2);
+    }
+
+    
+   private void crearFondo() {
+    float ancho = app.getCamera().getWidth();
+    float alto = app.getCamera().getHeight();
+    
+    System.out.println("🌌 Creando fondo espacial...");
+    
+    // === 1. FONDO BASE CON DEGRADADO VERTICAL ===
+    Texture texturaFondo = crearTexturaFondoEspacial((int)ancho, (int)alto);
+    
+    Material fondoMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+    fondoMat.setTexture("ColorMap", texturaFondo);
+    fondoMat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+    
+    fondoGeometry = new Geometry("FondoEspacial", new Quad(ancho, alto));
+    fondoGeometry.setMaterial(fondoMat);
+    fondoGeometry.setLocalTranslation(0, 0, -1f);
+    
+    app.getGuiNode().attachChild(fondoGeometry);
+    System.out.println("✓ Fondo espacial con estrellas creado");
+}
+   private Texture crearTexturaFondoEspacial(int ancho, int alto) {
+    System.out.println("  🎨 Generando textura espacial " + ancho + "x" + alto + "...");
+    
+    // Crear buffer de píxeles
+    ByteBuffer buffer = BufferUtils.createByteBuffer(ancho * alto * 4);
+    
+    // Color morado base: #8128E0 (129, 40, 224)
+    ColorRGBA colorSuperior = new ColorRGBA(129f/255f, 40f/255f, 224f/255f, 1f);  // #8128E0 Morado
+    ColorRGBA colorMedio = new ColorRGBA(75f/255f, 0f/255f, 130f/255f, 1f);       // #4B0082 Índigo
+    ColorRGBA colorInferior = new ColorRGBA(25f/255f, 0f/255f, 51f/255f, 1f);     // #190033 Violeta oscuro
+    
+    // === GENERAR POSICIONES ALEATORIAS DE ESTRELLAS ===
+    Random random = new Random(12345); // Seed fijo para reproducibilidad
+    int cantidadEstrellas = (ancho * alto) / 800; // Densidad ajustable
+    List<Estrella> estrellas = new ArrayList<>();
+    
+    for (int i = 0; i < cantidadEstrellas; i++) {
+        int x = random.nextInt(ancho);
+        int y = random.nextInt(alto);
+        float brillo = 0.5f + random.nextFloat() * 0.5f; // 0.5 a 1.0
+        float tamano = random.nextFloat() * 2f + 1f; // 1 a 3 píxeles
+        estrellas.add(new Estrella(x, y, brillo, tamano));
     }
     
-    private void crearFondo() {
-        float ancho = app.getCamera().getWidth();
-        float alto = app.getCamera().getHeight();
-        
-        Material fondoMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        fondoMat.setColor("Color", new ColorRGBA(0.05f, 0.05f, 0.15f, 1f));
-        fondoMat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        fondoGeometry = new Geometry("Fondo", new Quad(ancho, alto));
-        fondoGeometry.setMaterial(fondoMat);
-        fondoGeometry.setLocalTranslation(0, 0, -1f);
-        
-        app.getGuiNode().attachChild(fondoGeometry);
+    System.out.println("  ⭐ Generando " + estrellas.size() + " estrellas...");
+    
+    // === RENDERIZAR PÍXELES ===
+    for (int y = 0; y < alto; y++) {
+        for (int x = 0; x < ancho; x++) {
+            // Calcular degradado vertical (arriba = morado, abajo = negro)
+            float t = (float)y / alto;
+            ColorRGBA colorBase = interpolarColor(colorSuperior, colorInferior, t);
+            
+            // Verificar si hay una estrella en esta posición
+            ColorRGBA colorFinal = colorBase;
+            for (Estrella estrella : estrellas) {
+                float distancia = FastMath.sqrt(
+                    (x - estrella.x) * (x - estrella.x) + 
+                    (y - estrella.y) * (y - estrella.y)
+                );
+                
+                // Estrella visible si está dentro del radio
+                if (distancia <= estrella.tamano) {
+                    // Brillo más intenso en el centro
+                    float intensidad = 1f - (distancia / estrella.tamano);
+                    intensidad = FastMath.pow(intensidad, 2f); // Curva exponencial para el brillo
+                    
+                    // Color blanco brillante
+                    ColorRGBA colorEstrella = new ColorRGBA(
+                        1f, 1f, 1f, 
+                        intensidad * estrella.brillo
+                    );
+                    
+                    // Mezclar estrella con fondo
+                    colorFinal = mezclarColoresAditivo(colorBase, colorEstrella);
+                }
+            }
+            
+            // Escribir píxel al buffer
+            buffer.put((byte)(colorFinal.r * 255));
+            buffer.put((byte)(colorFinal.g * 255));
+            buffer.put((byte)(colorFinal.b * 255));
+            buffer.put((byte)(colorFinal.a * 255));
+        }
     }
     
+    buffer.flip();
+    
+    // Crear imagen y textura
+    Image image = new Image(
+        Image.Format.RGBA8,
+        ancho,
+        alto,
+        buffer,
+        com.jme3.texture.image.ColorSpace.sRGB
+    );
+    
+    Texture2D textura = new Texture2D(image);
+    textura.setMagFilter(Texture.MagFilter.Bilinear);
+    textura.setMinFilter(Texture.MinFilter.BilinearNearestMipMap);
+    textura.setWrap(Texture.WrapMode.Clamp);
+    
+    System.out.println("  ✓ Textura espacial generada exitosamente");
+    return textura;
+}
+private ColorRGBA interpolarColor(ColorRGBA c1, ColorRGBA c2, float t) {
+    return new ColorRGBA(
+        c1.r + (c2.r - c1.r) * t,
+        c1.g + (c2.g - c1.g) * t,
+        c1.b + (c2.b - c1.b) * t,
+        c1.a + (c2.a - c1.a) * t
+    );
+}
+
+/**
+ * Mezcla aditiva de colores (para estrellas brillantes)
+ */
+private ColorRGBA mezclarColoresAditivo(ColorRGBA base, ColorRGBA brillo) {
+    return new ColorRGBA(
+        Math.min(1f, base.r + brillo.r * brillo.a),
+        Math.min(1f, base.g + brillo.g * brillo.a),
+        Math.min(1f, base.b + brillo.b * brillo.a),
+        1f
+    );
+}
+
+/**
+ * ⭐ Clase interna para representar una estrella
+ */
+private static class Estrella {
+    final int x, y;
+    final float brillo;
+    final float tamano;
+    
+    Estrella(int x, int y, float brillo, float tamano) {
+        this.x = x;
+        this.y = y;
+        this.brillo = brillo;
+        this.tamano = tamano;
+    }
+}
+
     private void crearProtagonista() {
-        // El objeto central se crea en GameplayUI y es reactivo
         System.out.println("✓ Objeto central gestionado por GameplayUI");
     }
     
@@ -274,48 +507,65 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     
     @Override
     public void update(float tpf) {
-        // Bloquear actualización si está pausado
         if (menuPausa != null && menuPausa.estaPausado()) {
             return;
         }
-        
+
         if (!isEnabled()) {
             return;
         }
-        
-        // Mostrar resultados si el juego terminó
-        if (juegoTerminado && !resultadosMostrados) {
+
+        // ⭐ NUEVO: Sistema de espera entre canciones
+        if (esperandoSiguienteCancion) {
+            tiempoEsperaActual += tpf;
+            
+            // Mostrar mensaje de transición
+            if (gameplayUI != null && tiempoEsperaActual < 0.5f) {
+                gameplayUI.mostrarFeedback("♪ Siguiente Canción...", ColorRGBA.Cyan);
+            }
+            
+            if (tiempoEsperaActual >= tiempoEsperaEntreCancion) {
+                esperandoSiguienteCancion = false;
+                tiempoEsperaActual = 0f;
+                siguienteCancionContinua();
+            }
+            return;
+        }
+
+        // Mostrar resultados si el juego terminó (solo en modo normal)
+        if (juegoTerminado && !resultadosMostrados && !modoContinuo) {
             mostrarVentanaResultados();
             resultadosMostrados = true;
             return;
         }
-        
+
         // Actualizar tiempo
         tiempoTranscurrido += tpf;
-        
-        // Procesar inputs en cada frame
+
+        // Procesar inputs
         procesarInputsContinuos();
-        
-        // ✅ CORREGIDO: Actualizar UI con la firma correcta
+
+        // Actualizar UI
         if (gameplayUI != null) {
             gameplayUI.actualizarFeedback(tpf);
             gameplayUI.actualizarCombo(combo);
-            
-            // ✅ CORREGIDO: Solo pasar TPF (1 parámetro)
             gameplayUI.actualizarBrilloObjetoCentral(tpf);
         }
-        
+
         // Generar y verificar flechas
         generarFlechasPorTiempo();
         verificarMisses();
-        
-        // Verificar fin de canción
+
+        // Actualizar mecánica de ESPACIO
+        actualizarMecanicaEspacio();
+
+        // ⭐ VERIFICAR FIN DE CANCIÓN
         if (audioNode != null && audioNode.getStatus() == AudioSource.Status.Stopped && !juegoTerminado) {
-            terminarJuego("cancion_finalizada");
+            terminarCancion();
         }
-        
-        // Verificar game over
-        if (vida <= 0 && !juegoTerminado) {
+
+        // Verificar game over (omitido en modo práctica)
+        if (!modoPractica && vida <= 0 && !juegoTerminado) {
             terminarJuego("game_over");
         }
     }
@@ -325,11 +575,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         juegoTerminado = true;
         System.out.println("\n=== JUEGO TERMINADO: " + razon + " ===");
-        
+
         if (audioNode != null) {
             audioNode.stop();
         }
-        
+
         this.setEnabled(false);
     }
     
@@ -338,7 +588,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private void mostrarVentanaResultados() {
         if (procesandoResultados) return;
         procesandoResultados = true;
-        
+
         final String nombreCancion = canciones.get(cancionActual);
         final int scoreFinal = score;
         final int comboFinal = maxCombo;
@@ -347,21 +597,21 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         final int malosFinal = malos;
         final int missesFinal = misses;
         final int vidaFinal = vida;
-        
+
         if (gameplayUI != null) {
             gameplayUI.ocultarTemporalmente();
         }
-        
+
         new Thread(() -> {
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            
+
             SwingUtilities.invokeLater(() -> {
                 java.awt.Frame parentFrame = obtenerFramePadre();
-                
+
                 boolean continuar = VentanaResultados.mostrarResultados(
                     parentFrame,
                     nombreCancion,
@@ -373,7 +623,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                     missesFinal,
                     vidaFinal
                 );
-                
+
                 app.enqueue(() -> {
                     if (continuar && cancionActual + 1 < canciones.size()) {
                         siguienteCancion();
@@ -385,7 +635,6 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             });
         }, "ResultadosThread").start();
     }
-    
     // ==================== SISTEMA DE PLAYLIST ====================
     
     private void siguienteCancion() {
@@ -454,6 +703,23 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     }
     
     // ==================== SISTEMA DE AUDIO ====================
+    public void setModoContinuo(boolean continuo) {
+        this.modoContinuo = continuo;
+        System.out.println("🔁 Modo continuo: " + (continuo ? "ACTIVADO" : "DESACTIVADO"));
+    }
+
+    /**
+     * Configura el tiempo de espera entre canciones (en segundos)
+     */
+    public void setTiempoEsperaEntreCancion(float segundos) {
+        this.tiempoEsperaEntreCancion = Math.max(0.5f, segundos);
+        System.out.println("⏱ Tiempo entre canciones: " + this.tiempoEsperaEntreCancion + "s");
+    }
+
+    public boolean isModoContinuo() {
+        return modoContinuo;
+    }
+    
     
     private void reproducirCancionActual() {
         if (cancionActual >= canciones.size()) {
@@ -565,6 +831,70 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         System.out.println("  Flechas generadas: " + flechasAGenerar.size());
     }
+
+    private float bpmEnTiempo(float t) {
+        if (analisisActual == null || analisisActual.segmentosBpm == null || analisisActual.segmentosBpm.isEmpty()) {
+            return (float) analisisActual.getBPMEstimado();
+        }
+        for (ResultadoAnalisis.SegmentoBpm s : analisisActual.segmentosBpm) {
+            if (t >= s.inicio && t <= s.fin + 1e-4f) return s.bpm;
+        }
+        return (float) analisisActual.getBPMEstimado();
+    }
+
+    private float ventanaPerfecta(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_PERFECTA_BASE;
+        float v = interval * 0.08f;
+        if (v < 0.03f) v = 0.03f;
+        if (v > 0.08f) v = 0.08f;
+        return v;
+    }
+    private float ventanaBuena(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_BUENA_BASE;
+        float v = interval * 0.20f;
+        if (v < 0.10f) v = 0.10f;
+        if (v > 0.22f) v = 0.22f;
+        return v;
+    }
+    private float ventanaMala(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_MALA_BASE;
+        float v = interval * 0.32f;
+        if (v < 0.20f) v = 0.20f;
+        if (v > 0.35f) v = 0.35f;
+        return v;
+    }
+    private float ventanaMiss(float t) {
+        float bpm = bpmEnTiempo(t);
+        float interval = bpm > 0f ? 60f / bpm : VENTANA_MISS_BASE;
+        float v = interval * 0.42f;
+        if (v < 0.30f) v = 0.30f;
+        if (v > 0.50f) v = 0.50f;
+        return v;
+    }
+
+    private void inicializarEventosEspacio() {
+        if (analisisActual == null) return;
+        // Usar beats lentos como eventos de ESPACIO
+        List<Float> base = new ArrayList<>(analisisActual.beatsLentos);
+        Collections.sort(base);
+        List<Float> filtrados = new ArrayList<>();
+        float minSep = 4.0f;
+        float ultimo = -1e6f;
+        for (float e : base) {
+            if (e - ultimo >= minSep) {
+                filtrados.add(e);
+                ultimo = e;
+            }
+        }
+        this.eventosEspacio = filtrados;
+        this.indiceEventoEspacio = 0;
+        this.blink1Disparado = false;
+        this.blink2Disparado = false;
+        System.out.println("  Eventos ESPACIO: " + this.eventosEspacio.size());
+    }
     
     private void generarFlechasPorTiempo() {
         while (indiceFlechaActual < flechasAGenerar.size()) {
@@ -580,29 +910,29 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    private void crearFlechaEnPantalla(FlechaData flechaData) {
-        float tamano = 70f;
-        Geometry flechaGeom = new Geometry("Flecha", new Quad(tamano, tamano));
+    
+private void crearFlechaEnPantalla(FlechaData flechaData) {
+        // ⭐ USAR GENERADOR PROCEDURAL
+        Geometry flechaGeom = flechaGenerator.crearFlecha(
+            flechaData.getTipo(),
+            flechaData.getDireccion()
+        );
         
-        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", flechaData.getDireccion().getColor());
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        flechaGeom.setMaterial(mat);
-        
+        // Configurar posición
         float ancho = app.getCamera().getWidth();
         float alto = app.getCamera().getHeight();
-        
         Vector3f posInicial = flechaData.getDireccion().getPosicionSpawn(ancho, alto);
         Vector3f posTarget = flechaData.getDireccion().getPosicionTarget(ancho, alto);
         
+        float tamano = 70f;
         flechaGeom.setLocalTranslation(posInicial.x - tamano/2, posInicial.y - tamano/2, 1);
         
-        float rotacion = flechaData.getDireccion().getRotacion();
-        if (rotacion != 0) {
-            flechaGeom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD);
-        }
+        // ⭐ YA NO ES NECESARIO ROTAR AQUÍ - El generador ya aplica la rotación
+        // La línea anterior que hacía esto:
+        // if (rotacion != 0) { flechaGeom.rotate(0, 0, rotacion * FastMath.DEG_TO_RAD); }
+        // ¡YA NO SE NECESITA!
         
+        // Crear control de movimiento
         FlechaControl control = new FlechaControl(
             flechaData.getTipo(),
             flechaData.getDireccion(),
@@ -610,7 +940,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             posTarget,
             flechaData.getVelocidad(),
             flechaData.getBeatTime(),
-            mat
+            flechaGeom.getMaterial() // ⭐ Pasar el material del generador
         );
         
         flechaGeom.addControl(control);
@@ -618,22 +948,44 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         flechasActivas.add(flechaGeom);
     }
     
+    // ==================== RESTO DEL CÓDIGO SIN CAMBIOS ====================
+    
+    // ... todo el resto de tu código existente permanece igual ...
+    // (update, evaluarHit, registrarMiss, setupInputs, etc.)
+
+    
     private void verificarMisses() {
         Iterator<Geometry> iterator = flechasActivas.iterator();
         while (iterator.hasNext()) {
             Geometry flecha = iterator.next();
-            FlechaControl control = flecha.getControl(FlechaControl.class);
-            
-            if (control != null && control.fueErrada() && !control.fueGolpeada()) {
-                if (!flechasProcesadas.contains(control)) {
-                    registrarMiss();
-                    flechasProcesadas.add(control);
-                }
-                flecha.removeFromParent();
-                iterator.remove();
-            } else if (control != null && control.fueGolpeada()) {
-                if (flecha.getParent() == null) {
+            FlechaControl controlN = flecha.getControl(FlechaControl.class);
+            FlechaDoradaControl controlD = flecha.getControl(FlechaDoradaControl.class);
+            AbstractControl control = controlN != null ? controlN : controlD;
+            if (controlN != null) {
+                if (controlN.fueErrada() && !controlN.fueGolpeada()) {
+                    if (!flechasProcesadas.contains(control)) {
+                        registrarMiss();
+                        flechasProcesadas.add(control);
+                    }
+                    flecha.removeFromParent();
                     iterator.remove();
+                } else if (controlN.fueGolpeada()) {
+                    if (flecha.getParent() == null) {
+                        iterator.remove();
+                    }
+                }
+            } else if (controlD != null) {
+                if (controlD.fueErrada() && !controlD.fueGolpeada()) {
+                    if (!flechasProcesadas.contains(control)) {
+                        registrarMiss();
+                        flechasProcesadas.add(control);
+                    }
+                    flecha.removeFromParent();
+                    iterator.remove();
+                } else if (controlD.fueGolpeada()) {
+                    if (flecha.getParent() == null) {
+                        iterator.remove();
+                    }
                 }
             }
         }
@@ -641,62 +993,164 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     
     // ==================== ✅ SISTEMA DE INPUT CORREGIDO ====================
     
-    private void setupInputs() {
-        mappingTeclas = new HashMap<>();
-        mappingTeclas.put(Direccion.ARRIBA, "Arriba");
-        mappingTeclas.put(Direccion.ABAJO, "Abajo");
-        mappingTeclas.put(Direccion.IZQUIERDA, "Izquierda");
-        mappingTeclas.put(Direccion.DERECHA, "Derecha");
-        mappingTeclas.put(Direccion.ESPACIO, "Espacio");
+   private void setupInputs() {
+    mappingTeclas = new HashMap<>();
+    
+    // ⭐ CRÍTICO: Los nombres DEBEN coincidir con getTecla() del enum
+    mappingTeclas.put(Direccion.ARRIBA, "arriba");
+    mappingTeclas.put(Direccion.ABAJO, "abajo");
+    mappingTeclas.put(Direccion.IZQUIERDA, "izquierda");
+    mappingTeclas.put(Direccion.DERECHA, "derecha");
+    mappingTeclas.put(Direccion.ESPACIO, "espacio");
+
+    // Limpiar mappings previos
+    try {
+        for (String mapping : mappingTeclas.values()) {
+            app.getInputManager().deleteMapping(mapping);
+        }
+    } catch (Exception e) {}
+
+    // ✅ CONFIGURACIÓN CORRECTA DE TECLAS
+    app.getInputManager().addMapping("arriba",
+        new KeyTrigger(KeyInput.KEY_W),
+        new KeyTrigger(KeyInput.KEY_UP)
+    );
+
+    app.getInputManager().addMapping("abajo",
+        new KeyTrigger(KeyInput.KEY_S),
+        new KeyTrigger(KeyInput.KEY_DOWN)
+    );
+
+    app.getInputManager().addMapping("izquierda",
+        new KeyTrigger(KeyInput.KEY_A),
+        new KeyTrigger(KeyInput.KEY_LEFT)
+    );
+
+    app.getInputManager().addMapping("derecha",
+        new KeyTrigger(KeyInput.KEY_D),
+        new KeyTrigger(KeyInput.KEY_RIGHT)
+    );
+
+    app.getInputManager().addMapping("espacio",
+        new KeyTrigger(KeyInput.KEY_SPACE)
+    );
+
+    app.getInputManager().addListener(this,
+        "arriba", "abajo", "izquierda", "derecha", "espacio");
+
+    System.out.println("✓ Inputs configurados:");
+    System.out.println("  ARRIBA: W o ↑");
+    System.out.println("  ABAJO: S o ↓");
+    System.out.println("  IZQUIERDA: A o ←");
+    System.out.println("  DERECHA: D o →");
+    System.out.println("  ESPECIAL: ESPACIO");
+}
+   private void terminarCancion() {
+        juegoTerminado = true;
+        cancionesCompletadas++;
+        scoreTotalSession += score;
         
-        // Limpiar mappings previos
-        try {
-            for (String mapping : mappingTeclas.values()) {
-                app.getInputManager().deleteMapping(mapping);
+        System.out.println("\n=== CANCIÓN COMPLETADA ===");
+        System.out.println("  Canción: " + (cancionActual + 1) + "/" + canciones.size());
+        System.out.println("  Score: " + score);
+        System.out.println("  Vida: " + vida + "%");
+        
+        if (audioNode != null) {
+            audioNode.stop();
+        }
+
+        // ⭐ DECISIÓN: ¿Modo continuo o mostrar resultados?
+        if (modoContinuo) {
+            // Verificar si hay más canciones
+            if (cancionActual + 1 < canciones.size()) {
+                System.out.println("  → Preparando siguiente canción...");
+                esperandoSiguienteCancion = true;
+                tiempoEsperaActual = 0f;
+            } else {
+                // Terminó la playlist, reiniciar desde el inicio
+                System.out.println("  🔁 Playlist completada - Reiniciando...");
+                cancionActual = -1; // Se incrementará a 0 en siguienteCancionContinua()
+                esperandoSiguienteCancion = true;
+                tiempoEsperaActual = 0f;
+                
+                // Mostrar estadísticas de sesión
+                mostrarEstadisticasSession();
             }
-        } catch (Exception e) {}
-        
-        // Configurar AMBOS esquemas (WASD + Flechas)
-        app.getInputManager().addMapping("Arriba", 
-            new KeyTrigger(KeyInput.KEY_W),
-            new KeyTrigger(KeyInput.KEY_UP)
-        );
-        
-        app.getInputManager().addMapping("Abajo", 
-            new KeyTrigger(KeyInput.KEY_S),
-            new KeyTrigger(KeyInput.KEY_DOWN)
-        );
-        
-        app.getInputManager().addMapping("Izquierda", 
-            new KeyTrigger(KeyInput.KEY_A),
-            new KeyTrigger(KeyInput.KEY_LEFT)
-        );
-        
-        app.getInputManager().addMapping("Derecha", 
-            new KeyTrigger(KeyInput.KEY_D),
-            new KeyTrigger(KeyInput.KEY_RIGHT)
-        );
-        
-        app.getInputManager().addMapping("Espacio", 
-            new KeyTrigger(KeyInput.KEY_SPACE)
-        );
-        
-        app.getInputManager().addListener(this, 
-            "Arriba", "Abajo", "Izquierda", "Derecha", "Espacio");
-        
-        System.out.println("✓ Inputs configurados:");
-        System.out.println("  ARRIBA:    W o ↑");
-        System.out.println("  ABAJO:     S o ↓");
-        System.out.println("  IZQUIERDA: A o ←");
-        System.out.println("  DERECHA:   D o →");
-        System.out.println("  ESPECIAL:  ESPACIO");
+        } else {
+            // Modo normal: mostrar resultados
+            this.setEnabled(false);
+        }
     }
     
+   private void siguienteCancionContinua() {
+        cancionActual++;
+        
+        // Verificar si llegamos al final de la playlist
+        if (cancionActual >= canciones.size()) {
+            cancionActual = 0; // Reiniciar al principio
+            System.out.println("🔁 Reiniciando playlist desde el inicio");
+        }
+        
+        String siguienteCancion = canciones.get(cancionActual);
+        analisisActual = analisisCompleto.get(siguienteCancion);
+
+        // Reiniciar estado para nueva canción
+        reiniciarEstadoParaNuevaCancion();
+
+        // Limpiar elementos visuales
+        tiempoTranscurrido = 0f;
+        flechasActivas.clear();
+        flechasProcesadas.clear();
+        gameNode.detachAllChildren();
+
+        // Actualizar UI
+        if (gameplayUI != null) {
+            gameplayUI.actualizarVida(vida);
+            gameplayUI.actualizarScore(score);
+            gameplayUI.actualizarCombo(combo);
+        }
+
+        // Generar nueva canción
+        generarFlechasCancion();
+        inicializarEventosEspacio();
+        
+        // Flags
+        juegoTerminado = false;
+        resultadosMostrados = false;
+        procesandoResultados = false;
+        
+        this.setEnabled(true);
+        
+        // Reproducir
+        reproducirCancionActual();
+        
+        System.out.println("✓ Canción " + (cancionActual + 1) + "/" + canciones.size() + " iniciada");
+    }
+
+    /**
+     * ⭐ NUEVO: Muestra estadísticas de toda la sesión
+     */
+    private void mostrarEstadisticasSession() {
+        System.out.println("\n╔════════════════════════════════════════╗");
+        System.out.println("║     📊 ESTADÍSTICAS DE SESIÓN         ║");
+        System.out.println("╠════════════════════════════════════════╣");
+        System.out.println("║  Canciones completadas: " + String.format("%14d", cancionesCompletadas) + " ║");
+        System.out.println("║  Score total acumulado: " + String.format("%14d", scoreTotalSession) + " ║");
+        System.out.println("║  Score promedio/canción: " + String.format("%13d", 
+            cancionesCompletadas > 0 ? scoreTotalSession / cancionesCompletadas : 0) + " ║");
+        System.out.println("╚════════════════════════════════════════╝\n");
+    }
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
         if (menuPausa != null && menuPausa.estaPausado()) return;
         if (juegoTerminado) return;
-        
+
+        if (isPressed) {
+            if ("DificultadFacil".equals(name)) { setDifficulty(Modelo.FlechasGenerator.Difficulty.FACIL); return; }
+            if ("DificultadNormal".equals(name)) { setDifficulty(Modelo.FlechasGenerator.Difficulty.NORMAL); return; }
+            if ("DificultadDificil".equals(name)) { setDifficulty(Modelo.FlechasGenerator.Difficulty.DIFICIL); return; }
+        }
+
         Direccion direccion = obtenerDireccionDesdeTecla(name);
         if (direccion != null) {
             teclasPresionadas.put(direccion, isPressed);
@@ -706,6 +1160,19 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             }
         }
     }
+
+    public void setDifficulty(Modelo.FlechasGenerator.Difficulty d) {
+        if (flechasGenerator == null || analisisActual == null) return;
+        flechasGenerator.setDifficulty(d);
+        List<FlechaData> nuevas = flechasGenerator.generarFlechasCompletas(analisisActual);
+        int idx = 0;
+        float umbral = tiempoTranscurrido - tiempoAnticipacion - 0.01f;
+        while (idx < nuevas.size() && nuevas.get(idx).getBeatTime() < umbral) idx++;
+        flechasAGenerar = nuevas;
+        indiceFlechaActual = idx;
+        System.out.println("  ⚙ Dificultad cambiada a " + d + ", flechas disponibles: " + flechasAGenerar.size());
+    }
+    
     
     /**
      * ✅ CORREGIDO: Sin llamadas a métodos inexistentes
@@ -720,19 +1187,143 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // ✅ CORREGIDO: Solo activar brillo ESPACIO (método que SÍ existe)
         if (gameplayUI != null && direccion == Direccion.ESPACIO) {
             gameplayUI.activarBrilloEspacio();
+            // Evaluar golpe para evento de ESPACIO si dentro de ventana
+            if (evaluarHitEspacioSiDentroVentana()) {
+                ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+            }
+            return; // No buscar flechas para ESPACIO
         }
         
         // Buscar flecha válida
-        FlechaControl flechaObjetivo = encontrarMejorFlecha(direccion);
+        AbstractControl control = encontrarMejorFlechaControl(direccion);
+        if (control != null) {
+            if (control instanceof FlechaControl) {
+                FlechaControl c = (FlechaControl) control;
+                float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                if (delay <= ventanaMala(c.getBeatTime())) {
+                    evaluarHit(c, delay);
+                    c.brillar();
+                    ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+                    flechasProcesadas.add(control);
+                }
+            } else if (control instanceof FlechaDoradaControl) {
+                FlechaDoradaControl c = (FlechaDoradaControl) control;
+                float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                if (delay <= ventanaMala(c.getBeatTime())) {
+                    evaluarHitDorada(c, delay);
+                    c.brillar();
+                    ultimoTiempoInput.put(direccion, tiempoTranscurrido);
+                    flechasProcesadas.add(control);
+                }
+            }
+        }
+    }
+
+    private void actualizarMecanicaEspacio() {
+        if (eventosEspacio == null || indiceEventoEspacio >= eventosEspacio.size()) return;
+        float evento = eventosEspacio.get(indiceEventoEspacio);
+        float t = tiempoTranscurrido;
+
+        // Programar doble parpadeo: 0.6s y 0.1s antes del evento
+        if (!blink1Disparado && t >= evento - 0.6f) {
+            if (gameplayUI != null) {
+                gameplayUI.activarBrilloEspacio();
+                gameplayUI.activarBaileEspacio(0.8f);
+            }
+            blink1Disparado = true;
+        }
+        if (!blink2Disparado && t >= evento - 0.1f) {
+            if (gameplayUI != null) {
+                gameplayUI.activarBrilloEspacio();
+                gameplayUI.activarBaileEspacio(0.6f);
+            }
+            blink2Disparado = true;
+        }
+
+        // Registrar miss si pasó la ventana
+        if (t > evento + ventanaMiss(evento)) {
+            registrarMiss();
+            avanzarEventoEspacio();
+        }
+    }
+
+    private boolean evaluarHitEspacioSiDentroVentana() {
+        if (eventosEspacio == null || indiceEventoEspacio >= eventosEspacio.size()) return false;
+        float evento = eventosEspacio.get(indiceEventoEspacio);
+        float delay = Math.abs((tiempoTranscurrido + latenciaInput) - evento);
+        if (delay <= ventanaMala(evento)) {
+            evaluarHitEspacio(delay);
+            avanzarEventoEspacio();
+            return true;
+        }
+        return false;
+    }
+
+    private void avanzarEventoEspacio() {
+        indiceEventoEspacio++;
+        blink1Disparado = false;
+        blink2Disparado = false;
+    }
+
+    private void evaluarHitEspacio(float delay) {
+        delay = Math.abs(delay);
+        int puntosBase;
+        String feedback;
+        ColorRGBA colorFeedback;
+        boolean perfectHit = false;
         
-        if (flechaObjetivo != null) {
-            float delay = flechaObjetivo.calcularDelay(tiempoTranscurrido);
-            
-            if (delay <= VENTANA_MALA) {
-                evaluarHit(flechaObjetivo, delay);
-                flechaObjetivo.brillar();
-                ultimoTiempoInput.put(direccion, tiempoTranscurrido);
-                flechasProcesadas.add(flechaObjetivo);
+        float ref = (eventosEspacio != null && indiceEventoEspacio < eventosEspacio.size()) ? eventosEspacio.get(indiceEventoEspacio) : tiempoTranscurrido;
+        if (delay <= ventanaPerfecta(ref)) {
+            puntosBase = 100;
+            feedback = "¡PERFECTO!";
+            colorFeedback = new ColorRGBA(0.8f, 0.8f, 1f, 1);
+            perfectos++;
+            combo++;
+            perfectHit = true;
+            if (delay <= 0.02f) {
+                puntosBase = 150;
+                feedback = "¡¡IMPECABLE!!";
+            }
+        } else if (delay <= ventanaBuena(ref)) {
+            puntosBase = 50;
+            feedback = "BUENO";
+            colorFeedback = ColorRGBA.Yellow;
+            buenos++;
+            combo++;
+        } else if (delay <= ventanaMala(ref)) {
+            puntosBase = 20;
+            feedback = "MALO";
+            colorFeedback = ColorRGBA.Orange;
+            malos++;
+            combo = 0;
+        } else {
+            puntosBase = 10;
+            feedback = "TARDÍO";
+            colorFeedback = ColorRGBA.Red;
+            malos++;
+            combo = 0;
+        }
+        
+        // Sin flecha: usar multiplicador base 1.0
+        float multiplicador = 1.0f;
+        if (combo > 5) {
+            multiplicador *= (1 + combo * 0.05f);
+        }
+        int puntos = (int)(puntosBase * multiplicador);
+        score += puntos;
+        if (combo > maxCombo) maxCombo = combo;
+        // Recuperar vida en perfect (si no es práctica)
+        if (!modoPractica && delay <= ventanaPerfecta(ref)) {
+            vida = Math.min(100, vida + 2);
+            if (gameplayUI != null) gameplayUI.actualizarVida(vida);
+        }
+        if (gameplayUI != null) {
+            gameplayUI.actualizarScore(score);
+            gameplayUI.mostrarFeedback(feedback, colorFeedback);
+            gameplayUI.actualizarCombo(combo);
+            gameplayUI.activarBrilloHit(ColorRGBA.White);
+            if (perfectHit && puntos > 100) {
+                gameplayUI.mostrarBonusPuntos(puntos);
             }
         }
     }
@@ -744,14 +1335,26 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
                 float ultimoTiempo = ultimoTiempoInput.get(dir);
                 
                 if (tiempoTranscurrido - ultimoTiempo >= cooldownInput) {
-                    FlechaControl flecha = encontrarMejorFlecha(dir);
-                    if (flecha != null && !flechasProcesadas.contains(flecha)) {
-                        float delay = flecha.calcularDelay(tiempoTranscurrido);
-                        if (delay <= VENTANA_MALA) {
-                            evaluarHit(flecha, delay);
-                            flecha.brillar();
-                            ultimoTiempoInput.put(dir, tiempoTranscurrido);
-                            flechasProcesadas.add(flecha);
+                    AbstractControl control = encontrarMejorFlechaControl(dir);
+                    if (control != null && !flechasProcesadas.contains(control)) {
+                        if (control instanceof FlechaControl) {
+                            FlechaControl c = (FlechaControl) control;
+                            float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                            if (delay <= ventanaMala(c.getBeatTime())) {
+                                evaluarHit(c, delay);
+                                c.brillar();
+                                ultimoTiempoInput.put(dir, tiempoTranscurrido);
+                                flechasProcesadas.add(control);
+                            }
+                        } else if (control instanceof FlechaDoradaControl) {
+                            FlechaDoradaControl c = (FlechaDoradaControl) control;
+                            float delay = Math.abs(c.calcularDelay(tiempoTranscurrido + latenciaInput));
+                            if (delay <= ventanaMala(c.getBeatTime())) {
+                                evaluarHitDorada(c, delay);
+                                c.brillar();
+                                ultimoTiempoInput.put(dir, tiempoTranscurrido);
+                                flechasProcesadas.add(control);
+                            }
                         }
                     }
                 }
@@ -759,38 +1362,43 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    private FlechaControl encontrarMejorFlecha(Direccion direccion) {
-        FlechaControl mejorFlecha = null;
+    private AbstractControl encontrarMejorFlechaControl(Direccion direccion) {
+        AbstractControl mejor = null;
         float menorDelay = Float.MAX_VALUE;
-        
         for (Geometry flecha : flechasActivas) {
-            FlechaControl control = flecha.getControl(FlechaControl.class);
-            if (control == null || control.fueGolpeada() || control.fueErrada()) {
-                continue;
-            }
-            
-            if (flechasProcesadas.contains(control)) {
-                continue;
-            }
-            
-            Direccion direccionFlecha = control.getDireccion();
-            
-            // Manejar flechas invertidas (doradas)
-            if (control.getTipo() == TipoFlecha.DORADA && control.estaInvertida()) {
-                direccionFlecha = direccionFlecha.getOpuesta();
-            }
-            
-            if (direccionFlecha == direccion) {
-                float delay = Math.abs(control.calcularDelay(tiempoTranscurrido));
-                
-                if (delay <= VENTANA_MALA && delay < menorDelay) {
-                    menorDelay = delay;
-                    mejorFlecha = control;
+            FlechaControl controlN = flecha.getControl(FlechaControl.class);
+            FlechaDoradaControl controlD = flecha.getControl(FlechaDoradaControl.class);
+            if (controlN != null) {
+                if (controlN.fueGolpeada() || controlN.fueErrada()) continue;
+                if (flechasProcesadas.contains(controlN)) continue;
+                Direccion dirF = controlN.getDireccion();
+                if (controlN.getTipo() == TipoFlecha.DORADA && controlN.estaInvertida()) {
+                    dirF = dirF.getOpuesta();
+                }
+                if (dirF == direccion) {
+                    float delay = Math.abs(controlN.calcularDelay(tiempoTranscurrido + latenciaInput));
+                    if (delay <= ventanaMala(controlN.getBeatTime()) && delay < menorDelay) {
+                        menorDelay = delay;
+                        mejor = controlN;
+                    }
+                }
+            } else if (controlD != null) {
+                if (controlD.fueGolpeada() || controlD.fueErrada()) continue;
+                if (flechasProcesadas.contains(controlD)) continue;
+                Direccion dirF = controlD.getDireccion();
+                if (controlD.getTipo() == TipoFlecha.DORADA && controlD.estaInvertida()) {
+                    dirF = dirF.getOpuesta();
+                }
+                if (dirF == direccion) {
+                    float delay = Math.abs(controlD.calcularDelay(tiempoTranscurrido + latenciaInput));
+                    if (delay <= ventanaMala(controlD.getBeatTime()) && delay < menorDelay) {
+                        menorDelay = delay;
+                        mejor = controlD;
+                    }
                 }
             }
         }
-        
-        return mejorFlecha;
+        return mejor;
     }
     
     private Direccion obtenerDireccionDesdeTecla(String nombreTecla) {
@@ -816,39 +1424,42 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         boolean perfectHit = false;
         
         if (delay <= VENTANA_PERFECTA) {
-            puntosBase = 100;
-            feedback = "¡PERFECTO!";
-            colorFeedback = new ColorRGBA(0, 1, 0.5f, 1);
-            perfectos++;
-            combo++;
-            perfectHit = true;
-            
-            if (delay <= 0.02f) {
-                puntosBase = 150;
-                feedback = "¡¡IMPECABLE!!";
-            }
-            
-        } else if (delay <= VENTANA_BUENA) {
-            puntosBase = 50;
-            feedback = "BUENO";
-            colorFeedback = ColorRGBA.Yellow;
-            buenos++;
-            combo++;
-            
-        } else if (delay <= VENTANA_MALA) {
-            puntosBase = 20;
-            feedback = "MALO";
-            colorFeedback = ColorRGBA.Orange;
-            malos++;
-            combo = 0;
-            
-        } else {
-            puntosBase = 10;
-            feedback = "TARDÍO";
-            colorFeedback = ColorRGBA.Red;
-            malos++;
-            combo = 0;
-        }
+    puntosBase = 100;
+    feedback = "¡PERFECTO!";
+    // #F7B506 Amarillo dorado
+    colorFeedback = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
+    perfectos++;
+    combo++;
+    perfectHit = true;
+    
+    if (delay <= 0.02f) {
+        puntosBase = 150;
+        feedback = "¡¡IMPECABLE!!";
+        // #11D8C5 Cyan brillante
+        colorFeedback = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
+    }
+} else if (delay <= VENTANA_BUENA) {
+    puntosBase = 50;
+    feedback = "BUENO";
+    // #F27601 Naranja
+    colorFeedback = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
+    buenos++;
+    combo++;
+} else if (delay <= VENTANA_MALA) {
+    puntosBase = 20;
+    feedback = "MALO";
+    // #FF0084 Rosa/Magenta
+    colorFeedback = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
+    malos++;
+    combo = 0;
+} else {
+    puntosBase = 10;
+    feedback = "TARDÍO";
+    // Rojo puro
+    colorFeedback = ColorRGBA.Red;
+    malos++;
+    combo = 0;
+}
         
         // Sistema de multiplicadores
         float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
@@ -872,7 +1483,8 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
         
         // Recuperar vida con perfectos consecutivos
-        if (combo >= 10 && delay <= VENTANA_PERFECTA) {
+        // Recuperar vida en perfect (si no es práctica)
+        if (!modoPractica && delay <= vp) {
             vida = Math.min(100, vida + 2);
             if (gameplayUI != null) {
                 gameplayUI.actualizarVida(vida);
@@ -898,6 +1510,30 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         // Marcar flecha como golpeada
         flecha.marcarComoGolpeada();
     }
+
+    private void evaluarHitDorada(FlechaDoradaControl flecha, float delay) {
+        delay = Math.abs(delay);
+        int puntosBase;
+        String feedback;
+        ColorRGBA colorFeedback;
+        boolean perfectHit = false;
+        float vp = ventanaPerfecta(flecha.getBeatTime());
+        float vb = ventanaBuena(flecha.getBeatTime());
+        float vm = ventanaMala(flecha.getBeatTime());
+        if (delay <= vp) { puntosBase = 100; feedback = "¡PERFECTO!"; colorFeedback = new ColorRGBA(0, 1, 0.5f, 1); perfectos++; combo++; perfectHit = true; if (delay <= 0.02f) { puntosBase = 150; feedback = "¡¡IMPECABLE!!"; } }
+        else if (delay <= vb) { puntosBase = 50; feedback = "BUENO"; colorFeedback = ColorRGBA.Yellow; buenos++; combo++; }
+        else if (delay <= vm) { puntosBase = 20; feedback = "MALO"; colorFeedback = ColorRGBA.Orange; malos++; combo = 0; }
+        else { puntosBase = 10; feedback = "TARDÍO"; colorFeedback = ColorRGBA.Red; malos++; combo = 0; }
+        float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
+        if (combo > 5) { multiplicador *= (1 + combo * 0.05f); }
+        if (perfectos >= 10 && buenos == 0 && malos == 0) { multiplicador *= 1.5f; if (perfectos % 10 == 0) { feedback = "¡RACHA PERFECTA x" + perfectos + "!"; } }
+        int puntos = (int)(puntosBase * multiplicador);
+        score += puntos;
+        if (combo > maxCombo) { maxCombo = combo; }
+        if (!modoPractica && delay <= vp) { vida = Math.min(100, vida + 2); if (gameplayUI != null) { gameplayUI.actualizarVida(vida); } }
+        if (gameplayUI != null) { gameplayUI.actualizarScore(score); gameplayUI.mostrarFeedback(feedback, colorFeedback); gameplayUI.actualizarCombo(combo); ColorRGBA colorFlecha = flecha.getDireccion().getColor(); gameplayUI.activarBrilloHit(colorFlecha); if (perfectHit && puntos > 100) { gameplayUI.mostrarBonusPuntos(puntos); } }
+        flecha.marcarComoGolpeada();
+    }
     
     private void registrarMiss() {
         misses++;
@@ -911,18 +1547,20 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             penalizacion = 20;
         }
         
-        vida -= penalizacion;
-        vida = Math.max(0, vida);
-        
+        if (!modoPractica) {
+            vida -= penalizacion;
+            vida = Math.max(0, vida);
+            if (gameplayUI != null) {
+                gameplayUI.actualizarVida(vida);
+                // Advertencia si la vida está baja
+                if (vida <= 30 && vida > 0) {
+                    gameplayUI.mostrarAdvertenciaVidaBaja();
+                }
+            }
+        }
         if (gameplayUI != null) {
-            gameplayUI.actualizarVida(vida);
             gameplayUI.mostrarFeedback("MISS!", ColorRGBA.Red);
             gameplayUI.actualizarCombo(0);
-            
-            // Advertencia si la vida está baja
-            if (vida <= 30 && vida > 0) {
-                gameplayUI.mostrarAdvertenciaVidaBaja();
-            }
         }
     }
     

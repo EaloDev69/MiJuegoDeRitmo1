@@ -46,6 +46,18 @@ public class GameplayUI {
     private float tiempoBrilloEspacio = 0f;
     private boolean brillandoEspacio = false;
     private ColorRGBA colorBaseObjetoCentral;
+    private boolean wiggleActivo = false;
+    private float tiempoWiggle = 0f;
+    private int wiggleRepeticiones = 0;
+    private float wiggleDuracion = 0.35f;
+    private float wiggleAmplitud = 18f;
+    private float baseX;
+    private float baseY;
+    private boolean baileActivo = false;
+    private float tiempoBaile = 0f;
+    private float baileDuracion = 0.8f;
+    private float baileAmplitudX = 12f;
+    private float baileAmplitudY = 8f;
     
     // Efecto de pulso constante
     private float tiempoPulso = 0f;
@@ -77,6 +89,12 @@ public class GameplayUI {
     private static final ColorRGBA COLOR_VIDA_ALTA = new ColorRGBA(0.2f, 1f, 0.3f, 1f);
     private static final ColorRGBA COLOR_VIDA_MEDIA = new ColorRGBA(1f, 0.8f, 0.2f, 1f);
     private static final ColorRGBA COLOR_VIDA_BAJA = new ColorRGBA(1f, 0.3f, 0.2f, 1f);
+    
+    // 🎨 PALETA DE COLORES PARA FEEDBACK
+   private static final ColorRGBA COLOR_IMPECABLE = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
+   private static final ColorRGBA COLOR_PERFECTO = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
+   private static final ColorRGBA COLOR_BUENO = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
+   private static final ColorRGBA COLOR_MALO = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
 
     public GameplayUI(SimpleApplication app) {
         this.app = app;
@@ -136,7 +154,9 @@ public class GameplayUI {
             
             objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
             objetoCentral.setMaterial(materialObjetoCentral);
-            objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
+            baseX = centroX - tamano/2;
+            baseY = centroY - tamano/2;
+            objetoCentral.setLocalTranslation(baseX, baseY, 5);
             
             uiRootNode.attachChild(objetoCentral);
             
@@ -159,7 +179,9 @@ public class GameplayUI {
         
         objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
         objetoCentral.setMaterial(materialObjetoCentral);
-        objetoCentral.setLocalTranslation(centroX - tamano/2, centroY - tamano/2, 5);
+        baseX = centroX - tamano/2;
+        baseY = centroY - tamano/2;
+        objetoCentral.setLocalTranslation(baseX, baseY, 5);
         
         uiRootNode.attachChild(objetoCentral);
         
@@ -205,6 +227,35 @@ public class GameplayUI {
             ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
             materialObjetoCentral.setColor("Color", colorPulso);
         }
+
+        if (wiggleActivo) {
+            tiempoWiggle += tpf;
+            float fase = (tiempoWiggle / wiggleDuracion) * FastMath.TWO_PI;
+            float offsetX = wiggleAmplitud * FastMath.sin(fase);
+            float offsetY = 6f * FastMath.sin(fase * 2f) * 0.2f;
+            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
+            if (tiempoWiggle >= wiggleDuracion) {
+                tiempoWiggle = 0f;
+                wiggleRepeticiones--;
+                if (wiggleRepeticiones <= 0) {
+                    wiggleActivo = false;
+                    objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
+                }
+            }
+        } else if (baileActivo) {
+            tiempoBaile += tpf;
+            float progreso = tiempoBaile / baileDuracion;
+            float fase = progreso * FastMath.TWO_PI;
+            float ease = 0.5f - 0.5f * FastMath.cos(FastMath.PI * Math.min(1f, progreso));
+            float offsetX = baileAmplitudX * FastMath.sin(fase) * ease;
+            float offsetY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
+            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
+            if (tiempoBaile >= baileDuracion) {
+                baileActivo = false;
+                tiempoBaile = 0f;
+                objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
+            }
+        }
     }
 
     public void activarBrilloHit(ColorRGBA colorFlecha) {
@@ -216,6 +267,20 @@ public class GameplayUI {
         materialObjetoCentral.setColor("Color", colorMezclado);
         
         System.out.println("💫 Hit registrado - Brillo de color");
+    }
+
+    public void activarWiggleEspacio(int repeticiones) {
+        wiggleActivo = true;
+        wiggleRepeticiones = Math.max(1, repeticiones);
+        tiempoWiggle = 0f;
+        System.out.println("↔️ Objeto central WIGGLE x" + wiggleRepeticiones + " - Mecánica ESPACIO");
+    }
+
+    public void activarBaileEspacio(float duracion) {
+        baileActivo = true;
+        tiempoBaile = 0f;
+        baileDuracion = Math.max(0.3f, duracion);
+        System.out.println("〰️ Objeto central BAILE suave (" + baileDuracion + "s) - ESPACIO");
     }
 
     // ==================== INDICADORES DIRECCIONALES EN LOS LADOS ====================
@@ -529,42 +594,188 @@ public class GameplayUI {
 
     // ==================== FEEDBACK TEMPORAL ====================
     
-    public void mostrarFeedback(String mensaje, ColorRGBA color) {
-        BitmapText txtFeedback = new BitmapText(font);
-        txtFeedback.setSize(40f);
-        txtFeedback.setColor(color);
-        txtFeedback.setText(mensaje);
-        
-        float anchoTexto = txtFeedback.getLineWidth();
-        txtFeedback.setLocalTranslation(ancho / 2 - anchoTexto / 2, alto / 2 + 150f, 1f);
-        
-        guiNode.attachChild(txtFeedback);
-        mensajesFeedback.add(new MensajeFeedback(txtFeedback, 0f));
+    // ==================== FEEDBACK TEMPORAL CON CONTORNO ====================
+
+/**
+ * ⭐ MEJORADO: Mensajes con contorno blanco para mejor visibilidad
+ */
+public void mostrarFeedback(String mensaje, ColorRGBA color) {
+    // ⭐ TAMAÑO MÁS GRANDE según importancia
+    float tamano;
+    float escalaInicial;
+
+    if (mensaje.contains("IMPECABLE") || mensaje.contains("PERFECTO")) {
+        tamano = 60f;
+        escalaInicial = 1.5f;
+    } else if (mensaje.contains("BUENO")) {
+        tamano = 50f;
+        escalaInicial = 1.3f;
+    } else if (mensaje.contains("MALO") || mensaje.contains("TARDÍO")) {
+        tamano = 45f;
+        escalaInicial = 1.2f;
+    } else if (mensaje.contains("MISS")) {
+        tamano = 55f;
+        escalaInicial = 1.4f;
+    } else {
+        tamano = 50f;
+        escalaInicial = 1.3f;
     }
 
-    public void actualizarFeedback(float tpf) {
-        List<MensajeFeedback> mensajesAEliminar = new ArrayList<>();
+    // ========== CREAR CONTORNO BLANCO ==========
+    // El contorno se crea como un texto ligeramente más grande y desplazado
+    float offsetContorno = tamano * 0.025f; // 4% del tamaño = contorno moderado
+    
+    // Crear 8 textos de contorno (en las 8 direcciones principales)
+    ColorRGBA colorContorno = new ColorRGBA(0f, 0f, 0f, 0.85f); // Negro semi-transparente 
+    
+    float[][] offsetsContorno = {
+        {-offsetContorno, 0}, {offsetContorno, 0},     // Izquierda, Derecha
+        {0, -offsetContorno}, {0, offsetContorno},     // Abajo, Arriba
+        {-offsetContorno, -offsetContorno}, {offsetContorno, -offsetContorno}, // Diagonales
+        {-offsetContorno, offsetContorno}, {offsetContorno, offsetContorno}
+    };
+    
+    List<BitmapText> textosBorde = new ArrayList<>();
+    
+    for (float[] offset : offsetsContorno) {
+        BitmapText txtBorde = new BitmapText(font);
+        txtBorde.setSize(tamano);
+        txtBorde.setColor(colorContorno);
+        txtBorde.setText(mensaje);
         
-        for (MensajeFeedback msg : mensajesFeedback) {
-            msg.tiempo += tpf;
-            
-            float alpha = 1f - (msg.tiempo / DURACION_FEEDBACK);
-            if (alpha > 0) {
-                ColorRGBA colorActual = msg.texto.getColor().clone();
-                colorActual.a = alpha;
-                msg.texto.setColor(colorActual);
-                
-                Vector3f pos = msg.texto.getLocalTranslation();
-                msg.texto.setLocalTranslation(pos.x, pos.y + 60f * tpf, pos.z);
+        float anchoTexto = txtBorde.getLineWidth();
+        txtBorde.setLocalTranslation(
+            ancho / 2 - anchoTexto / 2 + offset[0], 
+            alto / 2 + 150f + offset[1], 
+            1.9f // Ligeramente detrás del texto principal
+        );
+        
+        guiNode.attachChild(txtBorde);
+        textosBorde.add(txtBorde);
+    }
+
+    // ========== CREAR TEXTO PRINCIPAL ==========
+    BitmapText txtFeedback = new BitmapText(font);
+    txtFeedback.setSize(tamano);
+    txtFeedback.setColor(color);
+    txtFeedback.setText(mensaje);
+
+    // Centrar texto principal
+    float anchoTexto = txtFeedback.getLineWidth();
+    txtFeedback.setLocalTranslation(ancho / 2 - anchoTexto / 2, alto / 2 + 150f, 2f);
+    
+    guiNode.attachChild(txtFeedback);
+
+    // ========== GUARDAR FEEDBACK CON SU CONTORNO ==========
+    MensajeFeedback msg = new MensajeFeedback(txtFeedback, 0f);
+    msg.escalaInicial = escalaInicial;
+    msg.textosBorde = textosBorde; // ⭐ NUEVO: Guardar referencias al contorno
+    mensajesFeedback.add(msg);
+}
+
+
+
+   public void actualizarFeedback(float tpf) {
+    List<MensajeFeedback> mensajesAEliminar = new ArrayList<>();
+    
+    for (MensajeFeedback msg : mensajesFeedback) {
+        msg.tiempo += tpf;
+        float progreso = msg.tiempo / DURACION_FEEDBACK; // 0.0 a 1.0
+
+        if (progreso <= 1.0f) {
+            // === FASE 1: Pop inicial (primeros 15%) ===
+            float escala;
+            if (progreso < 0.15f) {
+                float t = progreso / 0.15f;
+                escala = msg.escalaInicial - ((msg.escalaInicial - 1f) * easeOutBounce(t));
             } else {
-                msg.texto.removeFromParent();
-                mensajesAEliminar.add(msg);
+                escala = 1.0f;
             }
+            
+            // ⭐ APLICAR ESCALA AL TEXTO PRINCIPAL Y AL CONTORNO
+            msg.texto.setLocalScale(escala);
+            for (BitmapText borde : msg.textosBorde) {
+                borde.setLocalScale(escala);
+            }
+
+            // === FASE 2: Desvanecimiento (últimos 40%) ===
+            float alpha;
+            if (progreso < 0.6f) {
+                alpha = 1.0f;
+            } else {
+                float fadeProgress = (progreso - 0.6f) / 0.4f;
+                alpha = 1.0f - fadeProgress;
+            }
+
+            // ⭐ APLICAR TRANSPARENCIA AL TEXTO PRINCIPAL
+            ColorRGBA colorActual = msg.colorOriginal.clone();
+            colorActual.a = alpha;
+            msg.texto.setColor(colorActual);
+            
+            // ⭐ APLICAR TRANSPARENCIA AL CONTORNO
+            ColorRGBA colorBorde = new ColorRGBA(0f, 0f, 0f, alpha * 0.85f); // Negro
+            for (BitmapText borde : msg.textosBorde) {
+                borde.setColor(colorBorde);
+            }
+
+            // === FASE 3: Movimiento flotante ===
+            Vector3f pos = msg.texto.getLocalTranslation();
+            float velocidadY = 80f * (1f - progreso * 0.5f);
+            float desplazamientoX = FastMath.sin(progreso * FastMath.PI * 2f) * 10f;
+
+            // ⭐ MOVER TEXTO PRINCIPAL
+            msg.texto.setLocalTranslation(
+                pos.x + desplazamientoX * tpf,
+                pos.y + velocidadY * tpf,
+                pos.z
+            );
+            
+            // ⭐ MOVER CONTORNO (mantener offset relativo)
+            float offsetContorno = msg.texto.getSize() * 0.025f;
+            float[][] offsetsContorno = {
+                {-offsetContorno, 0}, {offsetContorno, 0},
+                {0, -offsetContorno}, {0, offsetContorno},
+                {-offsetContorno, -offsetContorno}, {offsetContorno, -offsetContorno},
+                {-offsetContorno, offsetContorno}, {offsetContorno, offsetContorno}
+            };
+            
+            for (int i = 0; i < msg.textosBorde.size() && i < offsetsContorno.length; i++) {
+                BitmapText borde = msg.textosBorde.get(i);
+                Vector3f posBorde = borde.getLocalTranslation();
+                borde.setLocalTranslation(
+                    pos.x + desplazamientoX * tpf + offsetsContorno[i][0],
+                    pos.y + velocidadY * tpf + offsetsContorno[i][1],
+                    posBorde.z
+                );
+            }
+            
+        } else {
+            // ⭐ ELIMINAR MENSAJE Y SU CONTORNO
+            msg.texto.removeFromParent();
+            for (BitmapText borde : msg.textosBorde) {
+                borde.removeFromParent();
+            }
+            mensajesAEliminar.add(msg);
         }
-        
-        mensajesFeedback.removeAll(mensajesAEliminar);
     }
 
+    mensajesFeedback.removeAll(mensajesAEliminar);
+}
+    
+    private float easeOutBounce(float t) {
+    if (t < (1f / 2.75f)) {
+        return 7.5625f * t * t;
+    } else if (t < (2f / 2.75f)) {
+        t -= (1.5f / 2.75f);
+        return 7.5625f * t * t + 0.75f;
+    } else if (t < (2.5f / 2.75f)) {
+        t -= (2.25f / 2.75f);
+        return 7.5625f * t * t + 0.9375f;
+    } else {
+        t -= (2.625f / 2.75f);
+        return 7.5625f * t * t + 0.984375f;
+    }
+}
     // ==================== ⭐ MÉTODOS NUEVOS PARA SISTEMA MEJORADO ====================
     
     public void mostrarBonusPuntos(int puntos) {
@@ -622,6 +833,13 @@ public class GameplayUI {
 
     // ==================== OCULTAR/MOSTRAR ====================
     
+    public void ocultarBarraVida() {
+        System.out.println("🔧 Ocultando barra de vida (modo práctica)");
+        if (barraVidaFondo != null) barraVidaFondo.removeFromParent();
+        if (barraVidaActual != null) barraVidaActual.removeFromParent();
+        if (txtVidaPorcentaje != null) txtVidaPorcentaje.removeFromParent();
+    }
+
     public void ocultarTemporalmente() {
         System.out.println("🔴 Ocultando UI del gameplay");
         
@@ -705,13 +923,21 @@ public class GameplayUI {
 
     // ==================== CLASE INTERNA ====================
     
-    private static class MensajeFeedback {
-        BitmapText texto;
-        float tiempo;
-        
-        MensajeFeedback(BitmapText texto, float tiempo) {
-            this.texto = texto;
-            this.tiempo = tiempo;
-        }
+   // ==================== CLASE INTERNA ====================
+private static class MensajeFeedback {
+    BitmapText texto;
+    float tiempo;
+    float escalaInicial;
+    ColorRGBA colorOriginal;
+    List<BitmapText> textosBorde; // ⭐ NUEVO: Referencias a los textos de contorno
+
+    MensajeFeedback(BitmapText texto, float tiempo) {
+        this.texto = texto;
+        this.tiempo = tiempo;
+        this.escalaInicial = 1.3f;
+        this.colorOriginal = texto.getColor().clone();
+        this.textosBorde = new ArrayList<>(); // ⭐ NUEVO
     }
+}
+
 }
