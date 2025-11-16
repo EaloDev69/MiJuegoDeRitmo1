@@ -1,0 +1,943 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+
+package UI;
+
+import Modelo.Direccion;
+import com.jme3.app.SimpleApplication;
+import com.jme3.font.BitmapFont;
+import com.jme3.font.BitmapText;
+import com.jme3.material.Material;
+import com.jme3.material.RenderState.BlendMode;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Node;
+import com.jme3.scene.shape.Quad;
+import com.jme3.texture.Texture;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * GameplayUI - SISTEMA CON OBJETO CENTRAL BRILLANTE
+ * 
+ * ✅ Objeto central con 4 indicadores en sus lados
+ * ✅ Sistema de brillo para mecánica ESPACIO
+ * ✅ Efectos visuales mejorados
+ * 
+ * @author CamiLaNekoUwU_Gamer
+ */
+public class GameplayUI {
+
+    private final SimpleApplication app;
+    private final Node guiNode;
+    private final BitmapFont font;
+    private final float ancho;
+    private final float alto;
+    
+    private Node uiRootNode;
+    
+    // ==================== OBJETO CENTRAL ====================
+    private Geometry objetoCentral;
+    private Material materialObjetoCentral;
+    private float tiempoBrilloEspacio = 0f;
+    private boolean brillandoEspacio = false;
+    private ColorRGBA colorBaseObjetoCentral;
+    private boolean wiggleActivo = false;
+    private float tiempoWiggle = 0f;
+    private int wiggleRepeticiones = 0;
+    private float wiggleDuracion = 0.35f;
+    private float wiggleAmplitud = 18f;
+    private float baseX;
+    private float baseY;
+    private boolean baileActivo = false;
+    private float tiempoBaile = 0f;
+    private float baileDuracion = 0.8f;
+    private float baileAmplitudX = 12f;
+    private float baileAmplitudY = 8f;
+    
+    // Efecto de pulso constante
+    private float tiempoPulso = 0f;
+    private static final float VELOCIDAD_PULSO = 2.0f;
+    
+    // ==================== INDICADORES EN LOS LADOS ====================
+    private Node nodoIndicadoresDireccionales;
+    
+    // ==================== UI TRADICIONAL ====================
+    private Geometry barraVidaFondo;
+    private Geometry barraVidaActual;
+    private BitmapText txtVidaPorcentaje;
+    private BitmapText txtScore;
+    private BitmapText txtCombo;
+    private BitmapText txtCancion;
+    
+    private int vidaMaxima = 100;
+    private int vidaActual = 100;
+    
+    // Feedback temporal
+    private List<MensajeFeedback> mensajesFeedback;
+    private static final float DURACION_FEEDBACK = 1.0f;
+    
+    // Botón de pausa
+    private Geometry btnPausa;
+    private BitmapText txtPausa;
+    
+    // Colores barra de vida
+    private static final ColorRGBA COLOR_VIDA_ALTA = new ColorRGBA(0.2f, 1f, 0.3f, 1f);
+    private static final ColorRGBA COLOR_VIDA_MEDIA = new ColorRGBA(1f, 0.8f, 0.2f, 1f);
+    private static final ColorRGBA COLOR_VIDA_BAJA = new ColorRGBA(1f, 0.3f, 0.2f, 1f);
+    
+    // 🎨 PALETA DE COLORES PARA FEEDBACK
+   private static final ColorRGBA COLOR_IMPECABLE = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
+   private static final ColorRGBA COLOR_PERFECTO = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
+   private static final ColorRGBA COLOR_BUENO = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
+   private static final ColorRGBA COLOR_MALO = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
+
+    public GameplayUI(SimpleApplication app) {
+        this.app = app;
+        this.guiNode = app.getGuiNode();
+        this.font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
+        this.ancho = app.getCamera().getWidth();
+        this.alto = app.getCamera().getHeight();
+        this.mensajesFeedback = new ArrayList<>();
+        
+        System.out.println("\n🎨 Inicializando GameplayUI con objeto central...");
+        System.out.println("  Dimensiones: " + ancho + "x" + alto);
+        
+        inicializarUI();
+        verificarVisibilidad();
+        
+        System.out.println("✓ GameplayUI inicializado correctamente\n");
+    }
+
+    private void inicializarUI() {
+        uiRootNode = new Node("GameplayUIRoot");
+        
+        crearObjetoCentral();
+        crearIndicadoresDireccionales();
+        crearBarraVida();
+        crearTextoScore();
+        crearTextoCombo();
+        crearTextoCancion();
+        crearBotonPausa();
+        
+        guiNode.attachChild(uiRootNode);
+        System.out.println("  ✓ GameplayUIRoot añadido al GuiNode");
+    }
+
+    // ==================== OBJETO CENTRAL ====================
+    
+    private void crearObjetoCentral() {
+        System.out.println("\n  ⭐ Creando objeto central...");
+        
+        float tamano = 150f;
+        float centroX = ancho / 2;
+        float centroY = alto / 2;
+        
+        String rutaTextura = "assets/Texture/Protagonista/astronautaPoseDefault.png";
+        
+        try {
+            System.out.println("  → Cargando textura: " + rutaTextura);
+            
+            Texture texture = app.getAssetManager().loadTexture(rutaTextura);
+            
+            materialObjetoCentral = new Material(app.getAssetManager(),
+                "Common/MatDefs/Misc/Unshaded.j3md");
+            materialObjetoCentral.setTexture("ColorMap", texture);
+            materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+            
+            colorBaseObjetoCentral = new ColorRGBA(1.1f, 1.1f, 1.1f, 1.0f);
+            materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+            
+            objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
+            objetoCentral.setMaterial(materialObjetoCentral);
+            baseX = centroX - tamano/2;
+            baseY = centroY - tamano/2;
+            objetoCentral.setLocalTranslation(baseX, baseY, 5);
+            
+            uiRootNode.attachChild(objetoCentral);
+            
+            System.out.println("  ✓ Objeto central creado exitosamente");
+            
+        } catch (Exception e) {
+            System.err.println("  ❌ Error cargando textura: " + e.getMessage());
+            System.err.println("  ⚠ Creando objeto central de respaldo...");
+            crearObjetoCentralFallback(centroX, centroY, tamano);
+        }
+    }
+
+    private void crearObjetoCentralFallback(float centroX, float centroY, float tamano) {
+        materialObjetoCentral = new Material(app.getAssetManager(),
+            "Common/MatDefs/Misc/Unshaded.j3md");
+        
+        colorBaseObjetoCentral = new ColorRGBA(1.2f, 1.2f, 1.4f, 0.9f);
+        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+        materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
+        objetoCentral.setMaterial(materialObjetoCentral);
+        baseX = centroX - tamano/2;
+        baseY = centroY - tamano/2;
+        objetoCentral.setLocalTranslation(baseX, baseY, 5);
+        
+        uiRootNode.attachChild(objetoCentral);
+        
+        System.out.println("  ✓ Objeto central de respaldo creado (cuadrado brillante)");
+    }
+
+    // ==================== SISTEMA DE BRILLO ====================
+    
+    public void activarBrilloEspacio() {
+        brillandoEspacio = true;
+        tiempoBrilloEspacio = 0f;
+        
+        if (materialObjetoCentral != null) {
+            materialObjetoCentral.setColor("Color", new ColorRGBA(3.0f, 3.0f, 4.0f, 1.0f));
+        }
+        
+        System.out.println("✨ Objeto central BRILLANDO - Mecánica ESPACIO activada");
+    }
+
+    public void actualizarBrilloObjetoCentral(float tpf) {
+        if (objetoCentral == null || materialObjetoCentral == null) return;
+        
+        if (brillandoEspacio) {
+            tiempoBrilloEspacio += tpf;
+            float duracionBrillo = 0.4f;
+            
+            if (tiempoBrilloEspacio < duracionBrillo) {
+                float progreso = tiempoBrilloEspacio / duracionBrillo;
+                float intensidad = 1.0f + (3.0f * (1.0f - progreso));
+                
+                float r = intensidad;
+                float g = intensidad;
+                float b = intensidad + (3.0f * (1.0f - progreso));
+                
+                materialObjetoCentral.setColor("Color", new ColorRGBA(r, g, b, 1.0f));
+            } else {
+                brillandoEspacio = false;
+                materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+            }
+        } else {
+            tiempoPulso += tpf * VELOCIDAD_PULSO;
+            float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
+            ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
+            materialObjetoCentral.setColor("Color", colorPulso);
+        }
+
+        if (wiggleActivo) {
+            tiempoWiggle += tpf;
+            float fase = (tiempoWiggle / wiggleDuracion) * FastMath.TWO_PI;
+            float offsetX = wiggleAmplitud * FastMath.sin(fase);
+            float offsetY = 6f * FastMath.sin(fase * 2f) * 0.2f;
+            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
+            if (tiempoWiggle >= wiggleDuracion) {
+                tiempoWiggle = 0f;
+                wiggleRepeticiones--;
+                if (wiggleRepeticiones <= 0) {
+                    wiggleActivo = false;
+                    objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
+                }
+            }
+        } else if (baileActivo) {
+            tiempoBaile += tpf;
+            float progreso = tiempoBaile / baileDuracion;
+            float fase = progreso * FastMath.TWO_PI;
+            float ease = 0.5f - 0.5f * FastMath.cos(FastMath.PI * Math.min(1f, progreso));
+            float offsetX = baileAmplitudX * FastMath.sin(fase) * ease;
+            float offsetY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
+            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
+            if (tiempoBaile >= baileDuracion) {
+                baileActivo = false;
+                tiempoBaile = 0f;
+                objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
+            }
+        }
+    }
+
+    public void activarBrilloHit(ColorRGBA colorFlecha) {
+        if (materialObjetoCentral == null) return;
+        
+        ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha).mult(0.7f);
+        colorMezclado.a = 1.0f;
+        
+        materialObjetoCentral.setColor("Color", colorMezclado);
+        
+        System.out.println("💫 Hit registrado - Brillo de color");
+    }
+
+    public void activarWiggleEspacio(int repeticiones) {
+        wiggleActivo = true;
+        wiggleRepeticiones = Math.max(1, repeticiones);
+        tiempoWiggle = 0f;
+        System.out.println("↔️ Objeto central WIGGLE x" + wiggleRepeticiones + " - Mecánica ESPACIO");
+    }
+
+    public void activarBaileEspacio(float duracion) {
+        baileActivo = true;
+        tiempoBaile = 0f;
+        baileDuracion = Math.max(0.3f, duracion);
+        System.out.println("〰️ Objeto central BAILE suave (" + baileDuracion + "s) - ESPACIO");
+    }
+
+    // ==================== INDICADORES DIRECCIONALES EN LOS LADOS ====================
+    
+    private void crearIndicadoresDireccionales() {
+        System.out.println("\n  📍 Creando indicadores direccionales en los lados del objeto central...");
+        
+        nodoIndicadoresDireccionales = new Node("IndicadoresDireccionales");
+        
+        float centroX = ancho / 2f;
+        float centroY = alto / 2f;
+        
+        // Tamaño del objeto central y los indicadores
+        float tamanoObjetoCentral = 150f;
+        float radioObjeto = tamanoObjetoCentral / 2f; // 75px
+        float tamanoIndicador = 40f;
+        
+        // ⭐ IZQUIERDA - En el lado izquierdo del cuadrado
+        crearIndicadorEnLado("←", 
+            centroX - radioObjeto, 
+            centroY, 
+            tamanoIndicador, 
+            new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
+        
+        // ⭐ DERECHA - En el lado derecho del cuadrado
+        crearIndicadorEnLado("→", 
+            centroX + radioObjeto, 
+            centroY, 
+            tamanoIndicador, 
+            new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
+        
+        // ⭐ ARRIBA - En el lado superior del cuadrado
+        crearIndicadorEnLado("↑", 
+            centroX, 
+            centroY + radioObjeto, 
+            tamanoIndicador, 
+            new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
+        
+        // ⭐ ABAJO - En el lado inferior del cuadrado
+        crearIndicadorEnLado("↓", 
+            centroX, 
+            centroY - radioObjeto, 
+            tamanoIndicador, 
+            new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
+        
+        uiRootNode.attachChild(nodoIndicadoresDireccionales);
+        System.out.println("  ✓ Indicadores direccionales creados en los 4 lados");
+    }
+
+    private void crearIndicadorEnLado(String simbolo, float x, float y, 
+                                      float tamano, ColorRGBA color) {
+        // Crear cuadro del indicador
+        Quad quad = new Quad(tamano, tamano);
+        Geometry indicador = new Geometry("Indicador-" + simbolo, quad);
+        
+        Material mat = new Material(app.getAssetManager(), 
+            "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", color);
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        indicador.setMaterial(mat);
+        // Centrar el indicador en las coordenadas dadas
+        indicador.setLocalTranslation(x - tamano/2, y - tamano/2, 0.2f);
+        
+        nodoIndicadoresDireccionales.attachChild(indicador);
+        
+        // Añadir símbolo de texto
+        BitmapText txtSimbolo = new BitmapText(font);
+        txtSimbolo.setSize(24f);
+        txtSimbolo.setColor(ColorRGBA.White);
+        txtSimbolo.setText(simbolo);
+        
+        // Centrar el texto dentro del cuadro
+        float anchoTexto = txtSimbolo.getLineWidth();
+        txtSimbolo.setLocalTranslation(
+            x - anchoTexto/2, 
+            y + 8f,  // Ajuste vertical para centrar
+            0.3f
+        );
+        
+        nodoIndicadoresDireccionales.attachChild(txtSimbolo);
+    }
+
+    // ==================== VERIFICACIÓN ====================
+    
+    private void verificarVisibilidad() {
+        System.out.println("\n🔍 Verificando visibilidad de elementos:");
+        
+        int elementosVisibles = 0;
+        int elementosTotales = 0;
+        
+        if (objetoCentral != null && objetoCentral.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Objeto central: VISIBLE");
+        } else {
+            System.out.println("  ✗ Objeto central: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (barraVidaFondo != null && barraVidaFondo.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Barra vida fondo: VISIBLE");
+        } else {
+            System.out.println("  ✗ Barra vida fondo: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (barraVidaActual != null && barraVidaActual.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Barra vida actual: VISIBLE");
+        } else {
+            System.out.println("  ✗ Barra vida actual: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (txtScore != null && txtScore.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Texto score: VISIBLE");
+        } else {
+            System.out.println("  ✗ Texto score: NO VISIBLE");
+        }
+        elementosTotales++;
+        
+        if (nodoIndicadoresDireccionales != null && nodoIndicadoresDireccionales.getParent() != null) {
+            elementosVisibles++;
+            System.out.println("  ✓ Indicadores: VISIBLES (" + 
+                nodoIndicadoresDireccionales.getChildren().size() + " elementos)");
+        }
+        elementosTotales++;
+        
+        System.out.println("\n  📊 Resumen: " + elementosVisibles + "/" + 
+            elementosTotales + " elementos visibles");
+    }
+
+    // ==================== BARRA DE VIDA ====================
+    
+    private void crearBarraVida() {
+        float anchoBarraMax = 500f;
+        float altoBarraMax = 35f;
+        float posX = (ancho - anchoBarraMax) / 2;
+        float posY = 60f;
+        
+        System.out.println("  💚 Creando barra de vida en: (" + posX + ", " + posY + ")");
+        
+        Quad fondoQuad = new Quad(anchoBarraMax, altoBarraMax);
+        barraVidaFondo = new Geometry("BarraVidaFondo", fondoQuad);
+        
+        Material matFondo = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        matFondo.setColor("Color", new ColorRGBA(0.1f, 0.1f, 0.1f, 0.9f));
+        matFondo.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        barraVidaFondo.setMaterial(matFondo);
+        barraVidaFondo.setLocalTranslation(posX, posY, 0);
+        guiNode.attachChild(barraVidaFondo);
+        
+        Quad vidaQuad = new Quad(anchoBarraMax, altoBarraMax);
+        barraVidaActual = new Geometry("BarraVidaActual", vidaQuad);
+        
+        Material matVida = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        matVida.setColor("Color", COLOR_VIDA_ALTA);
+        matVida.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        barraVidaActual.setMaterial(matVida);
+        barraVidaActual.setLocalTranslation(posX, posY, 0.1f);
+        guiNode.attachChild(barraVidaActual);
+        
+        txtVidaPorcentaje = new BitmapText(font);
+        txtVidaPorcentaje.setSize(22f);
+        txtVidaPorcentaje.setColor(ColorRGBA.White);
+        txtVidaPorcentaje.setText("100%");
+        txtVidaPorcentaje.setLocalTranslation(posX + anchoBarraMax / 2 - 30f, posY + 23f, 0.2f);
+        guiNode.attachChild(txtVidaPorcentaje);
+        
+        System.out.println("  ✓ Barra de vida creada");
+    }
+
+    public void actualizarVida(int nuevaVida) {
+        vidaActual = Math.max(0, Math.min(vidaMaxima, nuevaVida));
+        float porcentaje = (float) vidaActual / vidaMaxima;
+        
+        float anchoBarraMax = 500f;
+        float nuevoAncho = anchoBarraMax * porcentaje;
+        
+        Quad vidaQuad = new Quad(nuevoAncho, 35f);
+        barraVidaActual.setMesh(vidaQuad);
+        
+        Material mat = barraVidaActual.getMaterial();
+        if (porcentaje > 0.6f) {
+            mat.setColor("Color", COLOR_VIDA_ALTA);
+        } else if (porcentaje > 0.3f) {
+            mat.setColor("Color", COLOR_VIDA_MEDIA);
+        } else {
+            mat.setColor("Color", COLOR_VIDA_BAJA);
+        }
+        
+        txtVidaPorcentaje.setText(String.format("%d%%", (int)(porcentaje * 100)));
+        txtVidaPorcentaje.setColor(porcentaje <= 0.3f ? ColorRGBA.Red : ColorRGBA.White);
+    }
+
+    // ==================== SCORE ====================
+    
+    private void crearTextoScore() {
+        txtScore = new BitmapText(font);
+        txtScore.setSize(28f);
+        txtScore.setColor(ColorRGBA.White);
+        txtScore.setText("Score: 0");
+        txtScore.setLocalTranslation(30f, alto - 30f, 0);
+        guiNode.attachChild(txtScore);
+        
+        System.out.println("  ✓ Texto score añadido");
+    }
+
+    public void actualizarScore(int score) {
+        if (txtScore != null) {
+            txtScore.setText("Score: " + score);
+        }
+    }
+
+    // ==================== COMBO ====================
+    
+    private void crearTextoCombo() {
+        txtCombo = new BitmapText(font);
+        txtCombo.setSize(36f);
+        txtCombo.setColor(ColorRGBA.Cyan);
+        txtCombo.setText("");
+        txtCombo.setLocalTranslation(ancho / 2 - 80f, 130f, 0);
+        guiNode.attachChild(txtCombo);
+        
+        System.out.println("  ✓ Texto combo añadido");
+    }
+
+    public void actualizarCombo(int combo) {
+        if (txtCombo == null) return;
+        
+        if (combo > 1) {
+            txtCombo.setText("COMBO x" + combo);
+            
+            if (combo >= 20) {
+                txtCombo.setColor(new ColorRGBA(1f, 0f, 1f, 1f));
+                txtCombo.setSize(44f);
+            } else if (combo >= 10) {
+                txtCombo.setColor(new ColorRGBA(1f, 0.5f, 0f, 1f));
+                txtCombo.setSize(40f);
+            } else {
+                txtCombo.setColor(ColorRGBA.Cyan);
+                txtCombo.setSize(36f);
+            }
+        } else {
+            txtCombo.setText("");
+        }
+    }
+
+    // ==================== CANCIÓN ====================
+    
+    private void crearTextoCancion() {
+        txtCancion = new BitmapText(font);
+        txtCancion.setSize(18f);
+        txtCancion.setColor(new ColorRGBA(0.8f, 0.8f, 1f, 1f));
+        txtCancion.setText("♪ Cargando...");
+        txtCancion.setLocalTranslation(ancho - 350f, alto - 30f, 0);
+        guiNode.attachChild(txtCancion);
+        
+        System.out.println("  ✓ Texto canción añadido");
+    }
+
+    public void mostrarCancion(String nombreCancion) {
+        if (txtCancion == null) return;
+        
+        String nombre = nombreCancion;
+        if (nombreCancion.contains("/")) {
+            String[] partes = nombreCancion.split("/");
+            nombre = partes[partes.length - 1];
+        }
+        
+        if (nombre.endsWith(".wav")) {
+            nombre = nombre.substring(0, nombre.length() - 4);
+        }
+        
+        txtCancion.setText("♪ " + nombre);
+    }
+
+    // ==================== BOTÓN DE PAUSA ====================
+    
+    private void crearBotonPausa() {
+        float tamano = 60f;
+        float posX = ancho - tamano - 20f;
+        float posY = alto - tamano - 80f;
+        
+        System.out.println("  ⏸ Creando botón de pausa en: (" + posX + ", " + posY + ")");
+        
+        Quad quad = new Quad(tamano, tamano);
+        btnPausa = new Geometry("BotonPausa", quad);
+        
+        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", new ColorRGBA(0.2f, 0.2f, 0.2f, 0.8f));
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        
+        btnPausa.setMaterial(mat);
+        btnPausa.setLocalTranslation(posX, posY, 10);
+        guiNode.attachChild(btnPausa);
+        
+        txtPausa = new BitmapText(font);
+        txtPausa.setSize(40f);
+        txtPausa.setColor(ColorRGBA.White);
+        txtPausa.setText("||");
+        txtPausa.setLocalTranslation(posX + 15f, posY + 42f, 11);
+        guiNode.attachChild(txtPausa);
+        
+        System.out.println("  ✓ Botón de pausa creado");
+    }
+
+    // ==================== FEEDBACK TEMPORAL ====================
+    
+    // ==================== FEEDBACK TEMPORAL CON CONTORNO ====================
+
+/**
+ * ⭐ MEJORADO: Mensajes con contorno blanco para mejor visibilidad
+ */
+public void mostrarFeedback(String mensaje, ColorRGBA color) {
+    // ⭐ TAMAÑO MÁS GRANDE según importancia
+    float tamano;
+    float escalaInicial;
+
+    if (mensaje.contains("IMPECABLE") || mensaje.contains("PERFECTO")) {
+        tamano = 60f;
+        escalaInicial = 1.5f;
+    } else if (mensaje.contains("BUENO")) {
+        tamano = 50f;
+        escalaInicial = 1.3f;
+    } else if (mensaje.contains("MALO") || mensaje.contains("TARDÍO")) {
+        tamano = 45f;
+        escalaInicial = 1.2f;
+    } else if (mensaje.contains("MISS")) {
+        tamano = 55f;
+        escalaInicial = 1.4f;
+    } else {
+        tamano = 50f;
+        escalaInicial = 1.3f;
+    }
+
+    // ========== CREAR CONTORNO BLANCO ==========
+    // El contorno se crea como un texto ligeramente más grande y desplazado
+    float offsetContorno = tamano * 0.025f; // 4% del tamaño = contorno moderado
+    
+    // Crear 8 textos de contorno (en las 8 direcciones principales)
+    ColorRGBA colorContorno = new ColorRGBA(0f, 0f, 0f, 0.85f); // Negro semi-transparente 
+    
+    float[][] offsetsContorno = {
+        {-offsetContorno, 0}, {offsetContorno, 0},     // Izquierda, Derecha
+        {0, -offsetContorno}, {0, offsetContorno},     // Abajo, Arriba
+        {-offsetContorno, -offsetContorno}, {offsetContorno, -offsetContorno}, // Diagonales
+        {-offsetContorno, offsetContorno}, {offsetContorno, offsetContorno}
+    };
+    
+    List<BitmapText> textosBorde = new ArrayList<>();
+    
+    for (float[] offset : offsetsContorno) {
+        BitmapText txtBorde = new BitmapText(font);
+        txtBorde.setSize(tamano);
+        txtBorde.setColor(colorContorno);
+        txtBorde.setText(mensaje);
+        
+        float anchoTexto = txtBorde.getLineWidth();
+        txtBorde.setLocalTranslation(
+            ancho / 2 - anchoTexto / 2 + offset[0], 
+            alto / 2 + 150f + offset[1], 
+            1.9f // Ligeramente detrás del texto principal
+        );
+        
+        guiNode.attachChild(txtBorde);
+        textosBorde.add(txtBorde);
+    }
+
+    // ========== CREAR TEXTO PRINCIPAL ==========
+    BitmapText txtFeedback = new BitmapText(font);
+    txtFeedback.setSize(tamano);
+    txtFeedback.setColor(color);
+    txtFeedback.setText(mensaje);
+
+    // Centrar texto principal
+    float anchoTexto = txtFeedback.getLineWidth();
+    txtFeedback.setLocalTranslation(ancho / 2 - anchoTexto / 2, alto / 2 + 150f, 2f);
+    
+    guiNode.attachChild(txtFeedback);
+
+    // ========== GUARDAR FEEDBACK CON SU CONTORNO ==========
+    MensajeFeedback msg = new MensajeFeedback(txtFeedback, 0f);
+    msg.escalaInicial = escalaInicial;
+    msg.textosBorde = textosBorde; // ⭐ NUEVO: Guardar referencias al contorno
+    mensajesFeedback.add(msg);
+}
+
+
+
+   public void actualizarFeedback(float tpf) {
+    List<MensajeFeedback> mensajesAEliminar = new ArrayList<>();
+    
+    for (MensajeFeedback msg : mensajesFeedback) {
+        msg.tiempo += tpf;
+        float progreso = msg.tiempo / DURACION_FEEDBACK; // 0.0 a 1.0
+
+        if (progreso <= 1.0f) {
+            // === FASE 1: Pop inicial (primeros 15%) ===
+            float escala;
+            if (progreso < 0.15f) {
+                float t = progreso / 0.15f;
+                escala = msg.escalaInicial - ((msg.escalaInicial - 1f) * easeOutBounce(t));
+            } else {
+                escala = 1.0f;
+            }
+            
+            // ⭐ APLICAR ESCALA AL TEXTO PRINCIPAL Y AL CONTORNO
+            msg.texto.setLocalScale(escala);
+            for (BitmapText borde : msg.textosBorde) {
+                borde.setLocalScale(escala);
+            }
+
+            // === FASE 2: Desvanecimiento (últimos 40%) ===
+            float alpha;
+            if (progreso < 0.6f) {
+                alpha = 1.0f;
+            } else {
+                float fadeProgress = (progreso - 0.6f) / 0.4f;
+                alpha = 1.0f - fadeProgress;
+            }
+
+            // ⭐ APLICAR TRANSPARENCIA AL TEXTO PRINCIPAL
+            ColorRGBA colorActual = msg.colorOriginal.clone();
+            colorActual.a = alpha;
+            msg.texto.setColor(colorActual);
+            
+            // ⭐ APLICAR TRANSPARENCIA AL CONTORNO
+            ColorRGBA colorBorde = new ColorRGBA(0f, 0f, 0f, alpha * 0.85f); // Negro
+            for (BitmapText borde : msg.textosBorde) {
+                borde.setColor(colorBorde);
+            }
+
+            // === FASE 3: Movimiento flotante ===
+            Vector3f pos = msg.texto.getLocalTranslation();
+            float velocidadY = 80f * (1f - progreso * 0.5f);
+            float desplazamientoX = FastMath.sin(progreso * FastMath.PI * 2f) * 10f;
+
+            // ⭐ MOVER TEXTO PRINCIPAL
+            msg.texto.setLocalTranslation(
+                pos.x + desplazamientoX * tpf,
+                pos.y + velocidadY * tpf,
+                pos.z
+            );
+            
+            // ⭐ MOVER CONTORNO (mantener offset relativo)
+            float offsetContorno = msg.texto.getSize() * 0.025f;
+            float[][] offsetsContorno = {
+                {-offsetContorno, 0}, {offsetContorno, 0},
+                {0, -offsetContorno}, {0, offsetContorno},
+                {-offsetContorno, -offsetContorno}, {offsetContorno, -offsetContorno},
+                {-offsetContorno, offsetContorno}, {offsetContorno, offsetContorno}
+            };
+            
+            for (int i = 0; i < msg.textosBorde.size() && i < offsetsContorno.length; i++) {
+                BitmapText borde = msg.textosBorde.get(i);
+                Vector3f posBorde = borde.getLocalTranslation();
+                borde.setLocalTranslation(
+                    pos.x + desplazamientoX * tpf + offsetsContorno[i][0],
+                    pos.y + velocidadY * tpf + offsetsContorno[i][1],
+                    posBorde.z
+                );
+            }
+            
+        } else {
+            // ⭐ ELIMINAR MENSAJE Y SU CONTORNO
+            msg.texto.removeFromParent();
+            for (BitmapText borde : msg.textosBorde) {
+                borde.removeFromParent();
+            }
+            mensajesAEliminar.add(msg);
+        }
+    }
+
+    mensajesFeedback.removeAll(mensajesAEliminar);
+}
+    
+    private float easeOutBounce(float t) {
+    if (t < (1f / 2.75f)) {
+        return 7.5625f * t * t;
+    } else if (t < (2f / 2.75f)) {
+        t -= (1.5f / 2.75f);
+        return 7.5625f * t * t + 0.75f;
+    } else if (t < (2.5f / 2.75f)) {
+        t -= (2.25f / 2.75f);
+        return 7.5625f * t * t + 0.9375f;
+    } else {
+        t -= (2.625f / 2.75f);
+        return 7.5625f * t * t + 0.984375f;
+    }
+}
+    // ==================== ⭐ MÉTODOS NUEVOS PARA SISTEMA MEJORADO ====================
+    
+    public void mostrarBonusPuntos(int puntos) {
+        BitmapText txtBonus = new BitmapText(font);
+        txtBonus.setSize(32f);
+        txtBonus.setColor(new ColorRGBA(1f, 0.8f, 0f, 1f));
+        txtBonus.setText("+" + puntos);
+        
+        float anchoTexto = txtBonus.getLineWidth();
+        txtBonus.setLocalTranslation(
+            ancho / 2 - anchoTexto / 2, 
+            alto / 2 + 100f, 
+            2f
+        );
+        
+        guiNode.attachChild(txtBonus);
+        mensajesFeedback.add(new MensajeFeedback(txtBonus, 0f));
+        
+        System.out.println("💰 Bonus de puntos mostrado: +" + puntos);
+    }
+
+    public void mostrarAdvertenciaVidaBaja() {
+        if (barraVidaActual != null) {
+            Material mat = barraVidaActual.getMaterial();
+            ColorRGBA colorActual = mat.getParamValue("Color");
+            
+            if (colorActual != null) {
+                if (colorActual.r > 0.8f) {
+                    mat.setColor("Color", new ColorRGBA(0.6f, 0.1f, 0.1f, 1f));
+                } else {
+                    mat.setColor("Color", new ColorRGBA(1f, 0.2f, 0.2f, 1f));
+                }
+            }
+        }
+        
+        mostrarFeedback("¡VIDA BAJA!", ColorRGBA.Red);
+        
+        if (materialObjetoCentral != null) {
+            materialObjetoCentral.setColor("Color", new ColorRGBA(2f, 0.5f, 0.5f, 1f));
+            
+            new Thread(() -> {
+                try {
+                    Thread.sleep(200);
+                    if (materialObjetoCentral != null && colorBaseObjetoCentral != null) {
+                        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+        
+        System.out.println("⚠️ ADVERTENCIA: Vida baja activada");
+    }
+
+    // ==================== OCULTAR/MOSTRAR ====================
+    
+    public void ocultarBarraVida() {
+        System.out.println("🔧 Ocultando barra de vida (modo práctica)");
+        if (barraVidaFondo != null) barraVidaFondo.removeFromParent();
+        if (barraVidaActual != null) barraVidaActual.removeFromParent();
+        if (txtVidaPorcentaje != null) txtVidaPorcentaje.removeFromParent();
+    }
+
+    public void ocultarTemporalmente() {
+        System.out.println("🔴 Ocultando UI del gameplay");
+        
+        if (barraVidaFondo != null) barraVidaFondo.removeFromParent();
+        if (barraVidaActual != null) barraVidaActual.removeFromParent();
+        if (txtVidaPorcentaje != null) txtVidaPorcentaje.removeFromParent();
+        if (txtScore != null) txtScore.removeFromParent();
+        if (txtCombo != null) txtCombo.removeFromParent();
+        if (txtCancion != null) txtCancion.removeFromParent();
+        if (btnPausa != null) btnPausa.removeFromParent();
+        if (txtPausa != null) txtPausa.removeFromParent();
+        if (uiRootNode != null) uiRootNode.removeFromParent();
+    }
+
+    public void mostrarNuevamente() {
+        System.out.println("🟢 Mostrando UI del gameplay");
+        
+        if (uiRootNode != null && uiRootNode.getParent() == null) {
+            guiNode.attachChild(uiRootNode);
+        }
+        
+        if (barraVidaFondo != null && barraVidaFondo.getParent() == null) {
+            guiNode.attachChild(barraVidaFondo);
+        }
+        
+        if (barraVidaActual != null && barraVidaActual.getParent() == null) {
+            guiNode.attachChild(barraVidaActual);
+        }
+        
+        if (txtVidaPorcentaje != null && txtVidaPorcentaje.getParent() == null) {
+            guiNode.attachChild(txtVidaPorcentaje);
+        }
+        
+        if (txtScore != null && txtScore.getParent()== null) {
+            guiNode.attachChild(txtScore);
+        }
+        
+        if (txtCombo != null && txtCombo.getParent() == null) {
+            guiNode.attachChild(txtCombo);
+        }
+        
+        if (txtCancion != null && txtCancion.getParent() == null) {
+            guiNode.attachChild(txtCancion);
+        }
+        
+        if (btnPausa != null && btnPausa.getParent() == null) {
+            guiNode.attachChild(btnPausa);
+        }
+        
+        if (txtPausa != null && txtPausa.getParent() == null) {
+            guiNode.attachChild(txtPausa);
+        }
+    }
+
+    // ==================== LIMPIEZA ====================
+    
+    public void limpiar() {
+        System.out.println("🧹 Limpiando GameplayUI...");
+        
+        ocultarTemporalmente();
+        
+        for (MensajeFeedback msg : mensajesFeedback) {
+            if (msg.texto.getParent() != null) {
+                msg.texto.removeFromParent();
+            }
+        }
+        mensajesFeedback.clear();
+        
+        if (objetoCentral != null) {
+            objetoCentral.removeFromParent();
+            objetoCentral = null;
+        }
+        
+        if (uiRootNode != null) {
+            uiRootNode.detachAllChildren();
+            uiRootNode = null;
+        }
+        
+        System.out.println("✓ GameplayUI limpiado");
+    }
+
+    // ==================== CLASE INTERNA ====================
+    
+   // ==================== CLASE INTERNA ====================
+private static class MensajeFeedback {
+    BitmapText texto;
+    float tiempo;
+    float escalaInicial;
+    ColorRGBA colorOriginal;
+    List<BitmapText> textosBorde; // ⭐ NUEVO: Referencias a los textos de contorno
+
+    MensajeFeedback(BitmapText texto, float tiempo) {
+        this.texto = texto;
+        this.tiempo = tiempo;
+        this.escalaInicial = 1.3f;
+        this.colorOriginal = texto.getColor().clone();
+        this.textosBorde = new ArrayList<>(); // ⭐ NUEVO
+    }
+}
+
+}
