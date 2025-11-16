@@ -437,51 +437,91 @@ public class MenuAppState extends BaseAppState {
     /**
      * ⭐ NUEVO: Inicia el modo práctica (sin barra de vida, se juega hasta terminar)
      */
-    private void iniciarModoPractica() {
-        if (juego == null) return;
-
-        // Determinar canciones (respeta selección y modo aleatorio)
-        List<String> lista;
-        if (cancionesSeleccionadas.isEmpty()) {
-            lista = playlistManager.getCanciones();
-            if (modoAleatorioActivo && !lista.isEmpty()) {
-                lista = new ArrayList<>(lista);
-                Collections.shuffle(lista);
-            }
-        } else {
-            lista = new ArrayList<>(cancionesSeleccionadas);
-            if (modoAleatorioActivo) {
-                Collections.shuffle(lista);
-            }
+   /**
+ * ⭐ ACTUALIZADO: Inicia modo práctica con playlist continua
+ */
+private void iniciarModoPractica() {
+    System.out.println("\n=== INICIANDO MODO PRÁCTICA ===");
+    System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
+    
+    // Determinar qué canciones jugar
+    List<String> lista;
+    if (cancionesSeleccionadas.isEmpty()) {
+        lista = playlistManager.getCanciones();
+        if (modoAleatorioActivo && !lista.isEmpty()) {
+            lista = new ArrayList<>(lista);
+            Collections.shuffle(lista);
+            System.out.println("🔀 Todas las canciones mezcladas");
         }
-
-        if (lista.isEmpty()) {
-            System.err.println("ERROR: No hay canciones!");
-            lblInstrucciones.setText("ERROR: No hay canciones .wav\nAgrega archivos a assets/canciones/");
-            lblInstrucciones.setColor(ColorRGBA.Red);
-            return;
+    } else {
+        lista = new ArrayList<>(cancionesSeleccionadas);
+        if (modoAleatorioActivo) {
+            Collections.shuffle(lista);
+            System.out.println("🔀 Canciones seleccionadas mezcladas");
         }
-
-        final List<String> listaFinal = new ArrayList<>(lista);
-        SwingUtilities.invokeLater(() -> {
-            java.awt.Frame parentFrame = obtenerFramePadre();
-            Map<String, ResultadoAnalisis> resultados =
-                VentanaCargaCanciones.mostrarYAnalizarConResultados(
-                    parentFrame,
-                    listaFinal,
-                    analizador
-                );
-
-            juego.enqueue(() -> {
-                if (!resultados.isEmpty()) {
-                    System.out.println("\n✓ Análisis completado - Iniciando Modo Práctica");
-                    juego.startGameplayPractica(listaFinal, resultados);
-                } else {
-                    System.out.println("\n✕ Análisis cancelado o falló");
+    }
+    
+    if (lista.isEmpty()) {
+        System.err.println("ERROR: No hay canciones!");
+        lblInstrucciones.setText("ERROR: No hay canciones .wav\nAgrega archivos a assets/canciones/");
+        lblInstrucciones.setColor(ColorRGBA.Red);
+        return;
+    }
+    
+    System.out.println("\n=== PREPARANDO JUEGO ===");
+    System.out.println("Canciones a analizar: " + lista.size());
+    System.out.println("Modo aleatorio: " + (modoAleatorioActivo ? "SÍ 🔀" : "NO"));
+    
+    if (modoAleatorioActivo) {
+        System.out.println("\n🔀 ORDEN DE REPRODUCCIÓN (ALEATORIO):");
+    } else {
+        System.out.println("\nORDEN DE REPRODUCCIÓN:");
+    }
+    for (int i = 0; i < lista.size(); i++) {
+        String nombre = new File(lista.get(i)).getName();
+        System.out.println("  " + (i + 1) + ". " + nombre);
+    }
+    
+    final List<String> listaFinal = new ArrayList<>(lista);
+    
+    // Abrir ventana de carga y análisis
+    SwingUtilities.invokeLater(() -> {
+        java.awt.Frame parentFrame = obtenerFramePadre();
+        
+        Map<String, ResultadoAnalisis> resultados =
+            VentanaCargaCanciones.mostrarYAnalizarConResultados(
+                parentFrame,
+                listaFinal,
+                analizador
+            );
+        
+        // Iniciar gameplay en el thread de JME con los resultados
+        juego.enqueue(() -> {
+            if (!resultados.isEmpty()) {
+                System.out.println("\n✓ Análisis completado - Iniciando Modo Práctica");
+                System.out.println("Resultados obtenidos: " + resultados.size() + " canciones");
+                
+                // Limpiar menú
+                if (contenedorMenu != null && contenedorMenu.getParent() != null) {
+                    juego.getGuiNode().detachChild(contenedorMenu);
                 }
-                return null;
-            });
+                
+                // ⭐ CREAR GAMEPLAY CON MODO CONTINUO ACTIVADO
+                GameplayAppState gameplay = new GameplayAppState(
+                    listaFinal, 
+                    resultados,
+                    true,   // ⭐ modoPractica = TRUE (sin barra de vida, sin game over)
+                    true    // ⭐ modoContinuo = TRUE (playlist automática)
+                );
+                
+                juego.getStateManager().attach(gameplay);
+                System.out.println("✓ Modo práctica iniciado correctamente");
+            } else {
+                System.out.println("\n✕ Análisis cancelado o falló");
+            }
+            return null;
         });
+    });
     }
     
     @Override
