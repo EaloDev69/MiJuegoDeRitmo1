@@ -204,54 +204,65 @@ public class VentanaResultados extends JDialog {
     }
     
     private JPanel crearPanelBotones(boolean esGameOver) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        
-        // ⭐ Si es GAME OVER, solo mostrar botón de volver al menú
-        if (esGameOver) {
-            JButton btnMenu = new JButton("⌂ VOLVER AL MENÚ");
-            btnMenu.setFont(new Font("Arial", Font.BOLD, 18));
-            btnMenu.setBackground(new Color(150, 0, 0));
-            btnMenu.setForeground(Color.WHITE);
-            btnMenu.setFocusPainted(false);
-            btnMenu.setPreferredSize(new Dimension(250, 50));
-            btnMenu.addActionListener(e -> {
-                continuar = false;
-                dispose();
-            });
-            panel.add(btnMenu);
-            
-        } else {
-            // Si no es GAME OVER, mostrar ambos botones
-            
-            JButton btnContinuar = new JButton("▶ CONTINUAR");
-            btnContinuar.setFont(new Font("Arial", Font.BOLD, 16));
-            btnContinuar.setBackground(new Color(0, 150, 0));
-            btnContinuar.setForeground(Color.WHITE);
-            btnContinuar.setFocusPainted(false);
-            btnContinuar.setPreferredSize(new Dimension(180, 45));
-            btnContinuar.addActionListener(e -> {
-                continuar = true;
-                dispose();
-            });
-            panel.add(btnContinuar);
-            
-            JButton btnMenu = new JButton("⌂ VOLVER AL MENÚ");
-            btnMenu.setFont(new Font("Arial", Font.BOLD, 16));
-            btnMenu.setBackground(new Color(100, 100, 100));
-            btnMenu.setForeground(Color.WHITE);
-            btnMenu.setFocusPainted(false);
-            btnMenu.setPreferredSize(new Dimension(180, 45));
-            btnMenu.addActionListener(e -> {
-                continuar = false;
-                dispose();
-            });
-            panel.add(btnMenu);
-        }
-        
-        return panel;
+    JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 15));
+    panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+    if (esGameOver) {
+        // ⭐ NUEVO: Botón "Reintentar" para Game Over
+        JButton btnReintentar = new JButton("🔄 REINTENTAR");
+        btnReintentar.setFont(new Font("Arial", Font.BOLD, 18));
+        btnReintentar.setBackground(new Color(0, 150, 0));
+        btnReintentar.setForeground(Color.WHITE);
+        btnReintentar.setFocusPainted(false);
+        btnReintentar.setPreferredSize(new Dimension(200, 50));
+        btnReintentar.addActionListener(e -> {
+            continuar = true; // ⭐ TRUE para reintentar
+            dispose();
+        });
+        panel.add(btnReintentar);
+
+        // Botón "Volver al Menú"
+        JButton btnMenu = new JButton("⌂ VOLVER AL MENÚ");
+        btnMenu.setFont(new Font("Arial", Font.BOLD, 18));
+        btnMenu.setBackground(new Color(150, 0, 0));
+        btnMenu.setForeground(Color.WHITE);
+        btnMenu.setFocusPainted(false);
+        btnMenu.setPreferredSize(new Dimension(200, 50));
+        btnMenu.addActionListener(e -> {
+            continuar = false;
+            dispose();
+        });
+        panel.add(btnMenu);
+
+    } else {
+        // Si no es GAME OVER, mostrar ambos botones normales
+        JButton btnContinuar = new JButton("▶ CONTINUAR");
+        btnContinuar.setFont(new Font("Arial", Font.BOLD, 16));
+        btnContinuar.setBackground(new Color(0, 150, 0));
+        btnContinuar.setForeground(Color.WHITE);
+        btnContinuar.setFocusPainted(false);
+        btnContinuar.setPreferredSize(new Dimension(180, 45));
+        btnContinuar.addActionListener(e -> {
+            continuar = true;
+            dispose();
+        });
+        panel.add(btnContinuar);
+
+        JButton btnMenu = new JButton("⌂ VOLVER AL MENÚ");
+        btnMenu.setFont(new Font("Arial", Font.BOLD, 16));
+        btnMenu.setBackground(new Color(100, 100, 100));
+        btnMenu.setForeground(Color.WHITE);
+        btnMenu.setFocusPainted(false);
+        btnMenu.setPreferredSize(new Dimension(180, 45));
+        btnMenu.addActionListener(e -> {
+            continuar = false;
+            dispose();
+        });
+        panel.add(btnMenu);
     }
-    
+
+    return panel;
+}
     public boolean getContinuar() {
         return continuar;
     }

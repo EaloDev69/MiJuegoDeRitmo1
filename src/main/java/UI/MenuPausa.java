@@ -57,6 +57,7 @@ public class MenuPausa {
     // Botones
     private List<BotonMenu> botones;
     private int botonSeleccionado = 0;
+    private GameplayUI gameplayUI;
 
     // Listener de inputs
     private ActionListener inputListener;
@@ -64,32 +65,43 @@ public class MenuPausa {
     /**
      * Constructor ACTUALIZADO con callback de cambio de pausa
      */
-    public MenuPausa(SimpleApplication app, Runnable onReanudar, Runnable onVolverAlMenu, 
-                     Runnable onToggleMusica, Consumer<Boolean> onCambioPausa) {
-        this.app = app;
-        this.guiNode = app.getGuiNode();
-        this.font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
-        this.ancho = app.getCamera().getWidth();
-        this.alto = app.getCamera().getHeight();
-        
-        this.onReanudar = onReanudar;
-        this.onVolverAlMenu = onVolverAlMenu;
-        this.onToggleMusica = onToggleMusica;
-        this.onCambioPausa = onCambioPausa;
-        
-        this.botones = new ArrayList<>();
+   /**
+ * Constructor ACTUALIZADO con callback de cambio de pausa y GameplayUI
+ */
+public MenuPausa(SimpleApplication app, Runnable onReanudar, Runnable onVolverAlMenu,
+                 Runnable onToggleMusica, Consumer<Boolean> onCambioPausa, 
+                 GameplayUI gameplayUI) {
+    this.app = app;
+    this.guiNode = app.getGuiNode();
+    this.font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
+    this.ancho = app.getCamera().getWidth();
+    this.alto = app.getCamera().getHeight();
+    this.onReanudar = onReanudar;
+    this.onVolverAlMenu = onVolverAlMenu;
+    this.onToggleMusica = onToggleMusica;
+    this.onCambioPausa = onCambioPausa;
+    this.gameplayUI = gameplayUI;
+    this.botones = new ArrayList<>();
 
-        inicializar();
+    inicializar();
+    System.out.println("✓ MenuPausa inicializado");
+}
 
-        System.out.println("✓ MenuPausa inicializado");
-    }
+/**
+ * ⭐ Constructor legacy (sin GameplayUI) - para compatibilidad
+ */
+public MenuPausa(SimpleApplication app, Runnable onReanudar, Runnable onVolverAlMenu,
+                 Runnable onToggleMusica, Consumer<Boolean> onCambioPausa) {
+    this(app, onReanudar, onVolverAlMenu, onToggleMusica, onCambioPausa, null);
+}
 
-    /**
-     * Constructor legacy (sin callback de pausa)
-     */
-    public MenuPausa(SimpleApplication app, Runnable onReanudar, Runnable onVolverAlMenu, Runnable onToggleMusica) {
-        this(app, onReanudar, onVolverAlMenu, onToggleMusica, null);
-    }
+/**
+ * Constructor legacy (sin callback de pausa ni GameplayUI)
+ */
+public MenuPausa(SimpleApplication app, Runnable onReanudar, Runnable onVolverAlMenu, 
+                 Runnable onToggleMusica) {
+    this(app, onReanudar, onVolverAlMenu, onToggleMusica, null, null);
+}
 
     private void inicializar() {
         crearMenuPausa();
@@ -250,19 +262,24 @@ public class MenuPausa {
     // ==================== LÓGICA DEL MENÚ ====================
 
     public void togglePausa() {
-        System.out.println("\n🔄 TOGGLE PAUSA LLAMADO");
-        System.out.println("  - Estado actual pausado: " + pausado);
-        
-        if (pausado) {
-            System.out.println("  → Acción: REANUDAR");
-            reanudar();
-        } else {
-            System.out.println("  → Acción: PAUSAR");
-            pausar();
-        }
-        
-        System.out.println("  - Estado final pausado: " + pausado + "\n");
+    System.out.println("\n🔄 TOGGLE PAUSA LLAMADO");
+    
+    // ⭐ NUEVO: Activar animación del botón
+    if (gameplayUI != null) {
+        gameplayUI.animarClickBotonPausa();
     }
+    
+    System.out.println(" - Estado actual pausado: " + pausado);
+    
+    if (pausado) {
+        System.out.println(" → Acción: REANUDAR");
+        reanudar();
+    } else {
+        System.out.println(" → Acción: PAUSAR");
+        pausar();
+    }
+    System.out.println(" - Estado final pausado: " + pausado + "\n");
+}
 
     public void pausar() {
         if (pausado) {

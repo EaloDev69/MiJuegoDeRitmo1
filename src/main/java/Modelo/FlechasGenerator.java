@@ -27,7 +27,11 @@ public class FlechasGenerator {
     private int flechasConsecutivasMismaDireccion = 0;
     private Direccion ultimaDireccion = null;
     private float ventanaAPS = 1.0f;
+
+    
     public enum Difficulty { FACIL, NORMAL, DIFICIL }
+    private Difficulty difficulty = Difficulty.NORMAL;
+    
     private Difficulty dificultad = Difficulty.NORMAL;
     private enum TimeSignature { FOUR_FOUR, THREE_FOUR }
     private int barrasIntensasConsecutivas = 0;
@@ -45,6 +49,34 @@ public class FlechasGenerator {
         this.songClassifier = new SongClassifier();
         this.beatDetector = new BeatDetector();
     }
+    /**
+ * ⭐ Establece la dificultad
+ */
+public void setDifficulty(Difficulty difficulty) {
+    this.difficulty = difficulty;
+    
+    // Ajustar probabilidades según dificultad
+    switch(difficulty) {
+        case FACIL:
+            setProbabilidades(0.10f, 0.05f);
+            break;
+        case NORMAL:
+            setProbabilidades(0.20f, 0.15f);
+            break;
+        case DIFICIL:
+            setProbabilidades(0.35f, 0.25f);
+            break;
+    }
+    
+    System.out.println("⚙ Dificultad establecida: " + difficulty);
+}
+
+/**
+ * ⭐ Obtiene la dificultad actual
+ */
+public Difficulty getDifficulty() {
+    return difficulty;
+}
     
     /**
      * Genera todas las flechas para una canción analizada
@@ -238,6 +270,8 @@ public class FlechasGenerator {
     /**
      * Cuenta cuántas flechas hay de un tipo específico
      */
+    
+    
     private long contarTipo(List<FlechaData> flechas, TipoFlecha tipo) {
         return flechas.stream().filter(f -> f.getTipo() == tipo).count();
     }
@@ -256,27 +290,6 @@ public class FlechasGenerator {
     public void setGenerarPatronesRitmicos(boolean activar) {
         this.generarPatronesRitmicos = activar;
     }
-
-    public void setDifficulty(Difficulty d) {
-        this.dificultad = d;
-        switch (d) {
-            case FACIL:
-                ventanaAPS = 1.2f;
-                probabilidadRapida = 0.10f;
-                probabilidadDorada = 0.10f;
-                break;
-            case DIFICIL:
-                ventanaAPS = 0.8f;
-                probabilidadRapida = 0.25f;
-                probabilidadDorada = 0.18f;
-                break;
-            default:
-                ventanaAPS = 1.0f;
-                probabilidadRapida = 0.20f;
-                probabilidadDorada = 0.15f;
-        }
-    }
-
     private Pattern mapPattern(SongClassifier.PatternType pt) {
         switch (pt) {
             case SINCOPADO: return Pattern.SINCOPADO;

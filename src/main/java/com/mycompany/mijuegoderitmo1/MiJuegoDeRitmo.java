@@ -9,16 +9,17 @@ import com.jme3.app.state.AppState;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Node;
 import com.jme3.audio.AudioNode;
+import com.jme3.system.AppSettings;
 import States.MenuAppState;
 import States.GameplayAppState;
 import Modelo.AnalizadorCanciones.ResultadoAnalisis;
-import java.util.List;
-import java.util.Map;
-import com.jme3.system.AppSettings;
 import Modelo.PlaylistManager;
 import Modelo.AnalizadorCanciones;
+import java.util.List;
+import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import Modelo.FlechasGenerator.Difficulty;
 
 /**
  * Clase principal del juego de ritmo
@@ -54,17 +55,23 @@ public class MiJuegoDeRitmo extends SimpleApplication {
         this.setDisplayFps(true);
         this.setDisplayStatView(false);
         
+        // ⭐ NUEVO: Habilitar y mostrar el cursor
+        inputManager.setCursorVisible(true);
+        
+        // ⭐ NUEVO: Deshabilitar FlyByCamera para que no interfiera con el mouse
+        flyCam.setEnabled(false);
+        
         System.out.println("\n" + "=".repeat(60));
         System.out.println("🎮 JUEGO DE RITMO - INICIANDO");
         System.out.println("=".repeat(60));
-        
+
         // ⭐ INICIAR CON EL MENÚ PRINCIPAL
         iniciarConMenu();
-        
+
         System.out.println("✓ Aplicación inicializada correctamente");
+        System.out.println("✓ Mouse habilitado y visible");
         System.out.println("=".repeat(60) + "\n");
     }
-
     /**
      * ⭐ Inicia el juego mostrando el menú principal
      */
@@ -74,6 +81,7 @@ public class MiJuegoDeRitmo extends SimpleApplication {
         stateManager.attach(menuAppStates);
         System.out.println("✓ MenuAppState iniciado");
     }
+
 
     /**
      * ⭐ MÉTODO OPCIONAL PARA TESTING - Inicia gameplay sin menú
@@ -121,23 +129,24 @@ public class MiJuegoDeRitmo extends SimpleApplication {
      * Inicia el gameplay con las canciones seleccionadas
      * Llamado desde MenuAppState cuando el usuario presiona "Empezar"
      */
-    public void startGameplay(List<String> cancionesSeleccionadas, 
-                             Map<String, ResultadoAnalisis> resultados) {
-        System.out.println("\n=== INICIANDO GAMEPLAY ===");
-        System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
-        
-        // Limpiar el menú
-        if (menuAppStates != null) {
-            System.out.println("  - Desvinculando menú...");
-            stateManager.detach(menuAppStates);
-        }
-        
-        // Crear GameplayAppState con los resultados del análisis
-        gameplayAppState = new GameplayAppState(cancionesSeleccionadas, resultados);
-        stateManager.attach(gameplayAppState);
-        
-        System.out.println("✓ Gameplay iniciado correctamente");
+    public void startGameplay(List<String> cancionesSeleccionadas,
+                          Map<String, ResultadoAnalisis> resultados) {
+    System.out.println("\n=== INICIANDO GAMEPLAY ===");
+    System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
+
+    // Limpiar el menú
+    if (menuAppStates != null) {
+        System.out.println("  - Desvinculando menú...");
+        stateManager.detach(menuAppStates);
+        menuAppStates = null;
     }
+
+    // ⭐ Usar dificultad NORMAL por defecto
+    gameplayAppState = new GameplayAppState(cancionesSeleccionadas, resultados, Difficulty.NORMAL);
+    stateManager.attach(gameplayAppState);
+
+    System.out.println("✓ Gameplay iniciado correctamente");
+}
 
     public void startGameplayConDificultad(List<String> cancionesSeleccionadas,
                                            Map<String, ResultadoAnalisis> resultados,
@@ -157,80 +166,105 @@ public class MiJuegoDeRitmo extends SimpleApplication {
      * Inicia el gameplay en modo práctica (sin barra de vida ni game over por vida)
      */
     public void startGameplayContinuo(List<String> cancionesSeleccionadas,
-                                   Map<String, ResultadoAnalisis> resultados) {
+                                  Map<String, ResultadoAnalisis> resultados) {
     System.out.println("\n=== INICIANDO GAMEPLAY CONTINUO 🔁 ===");
     System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
 
     // Limpiar el menú
     if (menuAppStates != null) {
-        System.out.println(" - Desvinculando menú...");
+        System.out.println("  - Desvinculando menú...");
         stateManager.detach(menuAppStates);
     }
+
+    // ⭐ CORREGIDO: Usar dificultad NORMAL por defecto en modo continuo
     gameplayAppState = new GameplayAppState(
-        cancionesSeleccionadas, 
+        cancionesSeleccionadas,
         resultados,
-        false,  // modoPractica = false
-        true    // ⭐ modoContinuo = TRUE (esto es la clave)
+        Modelo.FlechasGenerator.Difficulty.NORMAL  // ⭐ Añadido
     );
+    
+    // Luego activar modo continuo
+    if (gameplayAppState instanceof GameplayAppState) {
+        ((GameplayAppState) gameplayAppState).setModoContinuo(true);
+    }
     
     stateManager.attach(gameplayAppState);
     System.out.println("✓ Gameplay continuo iniciado correctamente");
 }
+public void startGameplayPractica(List<String> cancionesSeleccionadas,
+        Map<String, ResultadoAnalisis> resultados) {
+    System.out.println("\n=== INICIANDO MODO PRÁCTICA 🎯 ===");
+    System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
     
-
-    public void startGameplayPractica(List<String> cancionesSeleccionadas,
-                                      Map<String, ResultadoAnalisis> resultados) {
-        System.out.println("\n=== INICIANDO MODO PRÁCTICA ===");
-        System.out.println("Canciones seleccionadas: " + cancionesSeleccionadas.size());
-
-        // Limpiar el menú
-        if (menuAppStates != null) {
-            System.out.println("  - Desvinculando menú...");
-            stateManager.detach(menuAppStates);
-        }
-
-        // Crear GameplayAppState con modo práctica activado
-        gameplayAppState = new GameplayAppState(cancionesSeleccionadas, resultados, true);
-        stateManager.attach(gameplayAppState);
-
-        System.out.println("✓ Modo práctica iniciado correctamente");
+    // Limpiar el menú
+    if (menuAppStates != null) {
+        System.out.println(" - Desvinculando menú...");
+        stateManager.detach(menuAppStates);
     }
+    
+    // ⭐ CRÍTICO: Crear con modoPractica = TRUE y modoContinuo = TRUE
+    gameplayAppState = new GameplayAppState(
+        cancionesSeleccionadas,
+        resultados,
+        true,  // ⭐ modoPractica = TRUE (sin barra de vida, sin game over)
+        true   // ⭐ modoContinuo = TRUE (playlist automática)
+    );
+    
+    stateManager.attach(gameplayAppState);
+    
+    System.out.println("✓ Modo práctica iniciado correctamente");
+    System.out.println("  - Sin barra de vida");
+    System.out.println("  - Sin game over por vida");
+    System.out.println("  - Playlist continua");
+}
 
     /**
      * Vuelve al menú principal
      * Llamado desde GameplayAppState al terminar o salir
      */
-    public void volverAlMenu() {
+     public void volverAlMenu() {
         System.out.println("\n=== VOLVIENDO AL MENÚ PRINCIPAL ===");
-        
+
         // 1. Limpiar GameplayAppState
         if (gameplayAppState != null) {
-            System.out.println("  - Desvinculando GameplayAppState...");
+            System.out.println(" - Desvinculando GameplayAppState...");
             stateManager.detach(gameplayAppState);
             gameplayAppState = null;
         }
-        
+
         // 2. Limpiar completamente el GuiNode
-        System.out.println("  - Limpiando GUI...");
+        System.out.println(" - Limpiando GUI...");
         guiNode.detachAllChildren();
-        
+
         // 3. Limpiar RootNode
         rootNode.detachAllChildren();
+
+        // ⭐ 4. Asegurar que el cursor esté visible
+        inputManager.setCursorVisible(true);
         
-        // 4. Recrear MenuAppState desde cero
-        System.out.println("  - Creando nuevo menú...");
+        // 5. Recrear MenuAppState desde cero
+        System.out.println(" - Creando nuevo menú...");
         menuAppStates = new MenuAppState();
-        
-        // 5. Vincular menú
+
+        // 6. Vincular menú
         stateManager.attach(menuAppStates);
-        
+
         System.out.println("✓ Menú principal restaurado");
+        System.out.println("✓ Cursor restaurado");
         System.out.println("===================================\n");
     }
 
     /**
      * Establece el volumen maestro del juego
      */
+     /**
+ * ⭐ NUEVO: Inicia gameplay con dificultad específica
+ */
+/**
+ * ⭐ NUEVO: Inicia gameplay con dificultad específica
+ */
+
+
     public void setMasterVolume(float volume) {
         this.masterVolume = volume;
         if (currentSong != null) {

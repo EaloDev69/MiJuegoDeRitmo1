@@ -18,8 +18,17 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Texture;
+import com.jme3.texture.Image;
+import com.jme3.texture.image.ColorSpace;
+import com.jme3.texture.Texture2D;
+import com.jme3.util.BufferUtils;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import com.jme3.math.Vector2f;
+import com.jme3.input.controls.MouseButtonTrigger;
+import com.jme3.input.MouseInput;
+
 
 /**
  * GameplayUI - SISTEMA CON OBJETO CENTRAL BRILLANTE
@@ -84,6 +93,18 @@ public class GameplayUI {
     // Botón de pausa
     private Geometry btnPausa;
     private BitmapText txtPausa;
+    private boolean animandoBotonPausa = false;
+    private float tiempoAnimacionBoton = 0f;
+    private static final float DURACION_ANIMACION_BOTON = 0.3f;
+    private ColorRGBA colorNormalBoton = new ColorRGBA(57f/255f, 129f/255f, 191f/255f, 1f); // #3981BF
+    private ColorRGBA colorClickBoton = new ColorRGBA(177f/255f, 35f/255f, 217f/255f, 1f); // #B123D9
+    private ColorRGBA colorContornoBoton = new ColorRGBA(112f/255f, 15f/255f, 148f/255f, 1f); // #700F94 Morado oscuro
+    
+// ⭐ NUEVO: Variables para detección de clics
+private com.jme3.input.InputManager inputManager;
+private com.jme3.input.controls.ActionListener mouseListener;
+private Runnable onClickBotonPausa;
+ // Callback para cuando se hace clic
     
     // Colores barra de vida
     private static final ColorRGBA COLOR_VIDA_ALTA = new ColorRGBA(0.2f, 1f, 0.3f, 1f);
@@ -103,6 +124,7 @@ public class GameplayUI {
         this.ancho = app.getCamera().getWidth();
         this.alto = app.getCamera().getHeight();
         this.mensajesFeedback = new ArrayList<>();
+        this.inputManager = app.getInputManager();
         
         System.out.println("\n🎨 Inicializando GameplayUI con objeto central...");
         System.out.println("  Dimensiones: " + ancho + "x" + alto);
@@ -112,7 +134,10 @@ public class GameplayUI {
         
         System.out.println("✓ GameplayUI inicializado correctamente\n");
     }
-
+public void setOnClickBotonPausa(Runnable callback) {
+    this.onClickBotonPausa = callback;
+    configurarDeteccionClicBoton();
+}
     private void inicializarUI() {
         uiRootNode = new Node("GameplayUIRoot");
         
@@ -134,8 +159,8 @@ public class GameplayUI {
         System.out.println("\n  ⭐ Creando objeto central...");
         
         float tamano = 150f;
-        float centroX = ancho / 2;
-        float centroY = alto / 2;
+        float centroX = ancho / 2f - 40f;  // Mismo ajuste que las zonas
+        float centroY = alto / 2f - 30f;   // Mismo ajuste que las zonas
         
         String rutaTextura = "assets/Texture/Protagonista/astronautaPoseDefault.png";
         
@@ -290,41 +315,41 @@ public class GameplayUI {
         
         nodoIndicadoresDireccionales = new Node("IndicadoresDireccionales");
         
-        float centroX = ancho / 2f;
-        float centroY = alto / 2f;
+    float centroX = ancho / 2f - 40f;  // Mismo centro que zonas de impacto
+    float centroY = alto / 2f - 30f;
         
         // Tamaño del objeto central y los indicadores
         float tamanoObjetoCentral = 150f;
         float radioObjeto = tamanoObjetoCentral / 2f; // 75px
         float tamanoIndicador = 40f;
         
-        // ⭐ IZQUIERDA - En el lado izquierdo del cuadrado
-        crearIndicadorEnLado("←", 
-            centroX - radioObjeto, 
-            centroY, 
-            tamanoIndicador, 
-            new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
-        
-        // ⭐ DERECHA - En el lado derecho del cuadrado
-        crearIndicadorEnLado("→", 
-            centroX + radioObjeto, 
-            centroY, 
-            tamanoIndicador, 
-            new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
-        
-        // ⭐ ARRIBA - En el lado superior del cuadrado
-        crearIndicadorEnLado("↑", 
-            centroX, 
-            centroY + radioObjeto, 
-            tamanoIndicador, 
-            new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
-        
-        // ⭐ ABAJO - En el lado inferior del cuadrado
-        crearIndicadorEnLado("↓", 
-            centroX, 
-            centroY - radioObjeto, 
-            tamanoIndicador, 
-            new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
+            // ⭐ IZQUIERDA - En el lado izquierdo del cuadrado
+    crearIndicadorEnLado("←",
+        centroX - radioObjeto,
+        centroY,
+        tamanoIndicador,
+        new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
+    
+    // ⭐ DERECHA - En el lado derecho del cuadrado
+    crearIndicadorEnLado("→",
+        centroX + radioObjeto,
+        centroY,
+        tamanoIndicador,
+        new ColorRGBA(1f, 0.3f, 0.3f, 0.6f));
+    
+    // ⭐ ARRIBA - En el lado superior del cuadrado
+    crearIndicadorEnLado("↑",
+        centroX,
+        centroY + radioObjeto,
+        tamanoIndicador,
+        new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
+    
+    // ⭐ ABAJO - En el lado inferior del cuadrado
+    crearIndicadorEnLado("↓",
+        centroX,
+        centroY - radioObjeto,
+        tamanoIndicador,
+        new ColorRGBA(0.3f, 0.3f, 1f, 0.6f));
         
         uiRootNode.attachChild(nodoIndicadoresDireccionales);
         System.out.println("  ✓ Indicadores direccionales creados en los 4 lados");
@@ -422,6 +447,7 @@ public class GameplayUI {
         float altoBarraMax = 35f;
         float posX = (ancho - anchoBarraMax) / 2;
         float posY = 60f;
+        float anchoBarra = (float) vidaActual / 100f;
         
         System.out.println("  💚 Creando barra de vida en: (" + posX + ", " + posY + ")");
         
@@ -564,37 +590,286 @@ public class GameplayUI {
 
     // ==================== BOTÓN DE PAUSA ====================
     
-    private void crearBotonPausa() {
-        float tamano = 60f;
-        float posX = ancho - tamano - 20f;
-        float posY = alto - tamano - 80f;
-        
-        System.out.println("  ⏸ Creando botón de pausa en: (" + posX + ", " + posY + ")");
-        
-        Quad quad = new Quad(tamano, tamano);
-        btnPausa = new Geometry("BotonPausa", quad);
-        
-        Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", new ColorRGBA(0.2f, 0.2f, 0.2f, 0.8f));
-        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        btnPausa.setMaterial(mat);
-        btnPausa.setLocalTranslation(posX, posY, 10);
-        guiNode.attachChild(btnPausa);
-        
-        txtPausa = new BitmapText(font);
-        txtPausa.setSize(40f);
-        txtPausa.setColor(ColorRGBA.White);
-        txtPausa.setText("||");
-        txtPausa.setLocalTranslation(posX + 15f, posY + 42f, 11);
-        guiNode.attachChild(txtPausa);
-        
-        System.out.println("  ✓ Botón de pausa creado");
+    // ==================== BOTÓN DE PAUSA MEJORADO ====================
+
+/**
+ * ⭐ MEJORADO: Botón de pausa con estilo y animación
+ */
+private void crearBotonPausa() {
+    float tamano = 60f;
+    float posX = ancho - tamano - 20f;
+    float posY = alto - tamano - 80f;
+
+    System.out.println(" ⏸ Creando botón de pausa mejorado en: (" + posX + ", " + posY + ")");
+
+    // ========== CREAR TEXTURA PROCEDURAL DEL BOTÓN ==========
+    Texture texturaBtnPausa = crearTexturaBotonPausa((int)tamano);
+    
+    // ========== FONDO DEL BOTÓN CON TEXTURA ==========
+    Quad quad = new Quad(tamano, tamano);
+    btnPausa = new Geometry("BotonPausa", quad);
+    
+    Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+    mat.setTexture("ColorMap", texturaBtnPausa);
+    mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+    btnPausa.setMaterial(mat);
+    btnPausa.setLocalTranslation(posX, posY, 10);
+    
+    guiNode.attachChild(btnPausa);
+
+    System.out.println(" ✓ Botón de pausa mejorado creado con contorno y líneas gruesas");
+}
+private Texture crearTexturaBotonPausa(int size) {
+    ByteBuffer buffer = BufferUtils.createByteBuffer(size * size * 4);
+    
+    float grosorContorno = size * 0.08f; // 8% del tamaño para el contorno
+    float grosorLinea = size * 0.15f; // 15% del tamaño para cada línea (más gruesas)
+    float separacionLineas = size * 0.12f; // 12% de separación entre líneas
+    
+    // Calcular posiciones de las líneas (centradas)
+    float centroX = size / 2f;
+    float anchoTotalLineas = (grosorLinea * 2) + separacionLineas;
+    float inicioLinea1 = centroX - (anchoTotalLineas / 2f);
+    float finLinea1 = inicioLinea1 + grosorLinea;
+    float inicioLinea2 = finLinea1 + separacionLineas;
+    float finLinea2 = inicioLinea2 + grosorLinea;
+    
+    // Altura de las líneas (más altas, ocupan más espacio vertical)
+    float margenVertical = size * 0.20f; // 20% de margen arriba y abajo
+    float inicioLineaY = margenVertical;
+    float finLineaY = size - margenVertical;
+    
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            ColorRGBA pixel = calcularPixelBotonPausa(
+                x, y, size,
+                grosorContorno,
+                inicioLinea1, finLinea1,
+                inicioLinea2, finLinea2,
+                inicioLineaY, finLineaY
+            );
+            
+            buffer.put((byte) (pixel.r * 255));
+            buffer.put((byte) (pixel.g * 255));
+            buffer.put((byte) (pixel.b * 255));
+            buffer.put((byte) (pixel.a * 255));
+        }
+    }
+    
+    buffer.flip();
+    
+    Image image = new Image(
+        Image.Format.RGBA8,
+        size,
+        size,
+        buffer,
+        ColorSpace.sRGB
+    );
+    
+    Texture2D texture = new Texture2D(image);
+    texture.setMagFilter(Texture.MagFilter.Bilinear);
+    texture.setMinFilter(Texture.MinFilter.BilinearNearestMipMap);
+    texture.setWrap(Texture.WrapMode.Clamp);
+    
+    return texture;
+}
+private ColorRGBA calcularPixelBotonPausa(
+    int x, int y, int size,
+    float grosorContorno,
+    float inicioLinea1, float finLinea1,
+    float inicioLinea2, float finLinea2,
+    float inicioLineaY, float finLineaY
+) {
+    // Calcular si estamos en el borde
+    boolean enBordeExterno = x < grosorContorno || x >= (size - grosorContorno) ||
+                             y < grosorContorno || y >= (size - grosorContorno);
+    
+    if (enBordeExterno) {
+        // Contorno morado oscuro
+        return colorContornoBoton;
+    }
+    
+    // Verificar si estamos dentro de las líneas de pausa
+    boolean enLinea1 = x >= inicioLinea1 && x < finLinea1 && 
+                       y >= inicioLineaY && y < finLineaY;
+    boolean enLinea2 = x >= inicioLinea2 && x < finLinea2 && 
+                       y >= inicioLineaY && y < finLineaY;
+    
+    if (enLinea1 || enLinea2) {
+        // Líneas blancas
+        return ColorRGBA.White;
+    }
+    
+    // Fondo azul del botón
+    return colorNormalBoton;
+}
+private void configurarDeteccionClicBoton() {
+    if (inputManager == null || btnPausa == null) {
+        System.err.println("⚠ No se puede configurar detección de clics: inputManager o btnPausa es null");
+        return;
     }
 
-    // ==================== FEEDBACK TEMPORAL ====================
+    // Limpiar listener previo si existe
+    if (mouseListener != null) {
+        try {
+            inputManager.removeListener(mouseListener);
+            inputManager.deleteMapping("ClickBotonPausa");
+        } catch (Exception e) {
+            // No existía, ok
+        }
+    }
+
+    // Crear listener de mouse usando la clase anónima
+    mouseListener = new com.jme3.input.controls.ActionListener() {
+        @Override
+        public void onAction(String name, boolean isPressed, float tpf) {
+            if (name.equals("ClickBotonPausa") && isPressed) {
+                // Verificar si el clic fue dentro del botón
+                verificarClicEnBoton();
+            }
+        }
+    };
+
+    // Mapear clic izquierdo del mouse
+    inputManager.addMapping("ClickBotonPausa", 
+        new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
+    inputManager.addListener(mouseListener, "ClickBotonPausa");
+
+    System.out.println("✓ Detección de clics en botón de pausa configurada");
+}
+/**
+ * ⭐ NUEVO: Verifica si el clic del mouse fue dentro del área del botón
+ */
+/**
+ * ⭐ NUEVO: Verifica si el clic del mouse fue dentro del área del botón
+ */
+private void verificarClicEnBoton() {
+    if (btnPausa == null || inputManager == null) return;
+
+    // Obtener posición del mouse
+    Vector2f clickPos = inputManager.getCursorPosition();
+    float mouseX = clickPos.x;
+    float mouseY = clickPos.y;
+
+    // Obtener bounds del botón
+    Vector3f posBtnPausa = btnPausa.getLocalTranslation();
+    float btnX = posBtnPausa.x;
+    float btnY = posBtnPausa.y;
+    float btnAncho = 60f; // Tamaño del botón
+    float btnAlto = 60f;
+
+    // Verificar si el clic está dentro del botón
+    boolean dentroDelBoton = mouseX >= btnX && mouseX <= (btnX + btnAncho) &&
+                              mouseY >= btnY && mouseY <= (btnY + btnAlto);
+
+    if (dentroDelBoton) {
+        System.out.println("🖱️ Clic detectado en botón de pausa!");
+        
+        // Activar animación
+        animarClickBotonPausa();
+        
+        // Ejecutar callback (pausar el juego)
+        if (onClickBotonPausa != null) {
+            onClickBotonPausa.run();
+        }
+    }
+}
+public void animarClickBotonPausa() {
+    if (btnPausa == null) return;
     
-    // ==================== FEEDBACK TEMPORAL CON CONTORNO ====================
+    animandoBotonPausa = true;
+    tiempoAnimacionBoton = 0f;
+    
+    // Guardar color original temporalmente
+    ColorRGBA colorOriginal = colorNormalBoton.clone();
+    
+    // Cambiar al color de click
+    colorNormalBoton = colorClickBoton.clone();
+    
+    // Recrear textura con nuevo color
+    Texture nuevaTextura = crearTexturaBotonPausa(60);
+    Material mat = btnPausa.getMaterial();
+    mat.setTexture("ColorMap", nuevaTextura);
+    
+    // Restaurar color original para futuras animaciones
+    colorNormalBoton = colorOriginal;
+    
+    System.out.println("🎯 Animación de botón de pausa activada");
+}
+/**
+ * ⭐ NUEVO: Actualiza la animación del botón de pausa
+ * Debe llamarse desde actualizarFeedback() o desde un update general
+ */
+public void actualizarAnimacionBotonPausa(float tpf) {
+    if (!animandoBotonPausa || btnPausa == null) return;
+    
+    tiempoAnimacionBoton += tpf;
+    float progreso = tiempoAnimacionBoton / DURACION_ANIMACION_BOTON; // 0.0 a 1.0
+    
+    if (progreso <= 1.0f) {
+        // ========== ANIMACIÓN DE REBOTE ==========
+        float escala;
+        float t = progreso;
+        
+        if (t < 0.5f) {
+            // Primera mitad: comprimir (1.0 → 0.85)
+            float t1 = t / 0.5f; // 0.0 a 1.0
+            escala = 1.0f - (0.15f * easeInQuad(t1));
+        } else {
+            // Segunda mitad: expandir y rebotar (0.85 → 1.0 con rebote)
+            float t2 = (t - 0.5f) / 0.5f; // 0.0 a 1.0
+            escala = 0.85f + (0.15f * easeOutElastic(t2));
+        }
+        
+        btnPausa.setLocalScale(escala);
+        
+        // ========== TRANSICIÓN DE COLOR ==========
+        // Después del 40% del progreso, empezar a volver al color original
+        if (progreso > 0.4f) {
+            float colorProgreso = (progreso - 0.4f) / 0.6f; // 0.0 a 1.0
+            ColorRGBA colorActual = interpolarColor(colorClickBoton, colorNormalBoton, colorProgreso);
+            Material mat = btnPausa.getMaterial();
+            mat.setColor("Color", colorActual);
+        }
+        
+    } else {
+        // ========== FINALIZAR ANIMACIÓN ==========
+        animandoBotonPausa = false;
+        btnPausa.setLocalScale(1.0f);
+        
+        Material mat = btnPausa.getMaterial();
+        mat.setColor("Color", colorNormalBoton);
+        
+        System.out.println("✓ Animación de botón completada");
+    }
+}
+private float easeInQuad(float t) {
+    return t * t;
+}
+
+/**
+ * Función de easing para el rebote elástico (expansión)
+ */
+private float easeOutElastic(float t) {
+    if (t == 0f || t == 1f) return t;
+    
+    float p = 0.3f;
+    float s = p / 4f;
+    
+    return (float) (Math.pow(2, -10 * t) * Math.sin((t - s) * (2 * Math.PI) / p) + 1);
+}
+
+/**
+ * Interpola entre dos colores (ya existe pero la incluyo por si acaso)
+ */
+private ColorRGBA interpolarColor(ColorRGBA c1, ColorRGBA c2, float t) {
+    return new ColorRGBA(
+        c1.r + (c2.r - c1.r) * t,
+        c1.g + (c2.g - c1.g) * t,
+        c1.b + (c2.b - c1.b) * t,
+        c1.a + (c2.a - c1.a) * t
+    );
+}
 
 /**
  * ⭐ MEJORADO: Mensajes con contorno blanco para mejor visibilidad
@@ -677,6 +952,7 @@ public void mostrarFeedback(String mensaje, ColorRGBA color) {
 
    public void actualizarFeedback(float tpf) {
     List<MensajeFeedback> mensajesAEliminar = new ArrayList<>();
+    actualizarAnimacionBotonPausa(tpf);
     
     for (MensajeFeedback msg : mensajesFeedback) {
         msg.tiempo += tpf;
@@ -897,29 +1173,40 @@ public void mostrarFeedback(String mensaje, ColorRGBA color) {
     // ==================== LIMPIEZA ====================
     
     public void limpiar() {
-        System.out.println("🧹 Limpiando GameplayUI...");
-        
-        ocultarTemporalmente();
-        
-        for (MensajeFeedback msg : mensajesFeedback) {
-            if (msg.texto.getParent() != null) {
-                msg.texto.removeFromParent();
-            }
+    System.out.println("🧹 Limpiando GameplayUI...");
+    
+    ocultarTemporalmente();
+
+    for (MensajeFeedback msg : mensajesFeedback) {
+        if (msg.texto.getParent() != null) {
+            msg.texto.removeFromParent();
         }
-        mensajesFeedback.clear();
-        
-        if (objetoCentral != null) {
-            objetoCentral.removeFromParent();
-            objetoCentral = null;
-        }
-        
-        if (uiRootNode != null) {
-            uiRootNode.detachAllChildren();
-            uiRootNode = null;
-        }
-        
-        System.out.println("✓ GameplayUI limpiado");
     }
+    mensajesFeedback.clear();
+
+    if (objetoCentral != null) {
+        objetoCentral.removeFromParent();
+        objetoCentral = null;
+    }
+
+    if (uiRootNode != null) {
+        uiRootNode.detachAllChildren();
+        uiRootNode = null;
+    }
+
+    // ⭐ NUEVO: Limpiar listener de mouse
+    if (mouseListener != null && inputManager != null) {
+        try {
+            inputManager.removeListener(mouseListener);
+            inputManager.deleteMapping("ClickBotonPausa");
+            System.out.println(" ✓ Listener de botón de pausa limpiado");
+        } catch (Exception e) {
+            System.err.println(" ⚠ Error limpiando listener: " + e.getMessage());
+        }
+    }
+
+    System.out.println("✓ GameplayUI limpiado");
+}
 
     // ==================== CLASE INTERNA ====================
     

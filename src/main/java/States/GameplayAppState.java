@@ -44,6 +44,7 @@ import java.nio.ByteBuffer;
 import com.jme3.texture.Texture2D;
 import com.jme3.util.BufferUtils;
 import com.jme3.texture.Image;
+import Modelo.FlechasGenerator.Difficulty;
 
 /**
  * GameplayAppState - Sistema de juego completo con mejoras visuales
@@ -82,6 +83,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int indiceEventoEspacio = 0;
     private boolean blink1Disparado = false;
     private boolean blink2Disparado = false;
+    
     
     // Sistema de playlist
     private List<String> canciones;
@@ -142,101 +144,113 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int cancionesCompletadas = 0;
     private int scoreTotalSession = 0;
     
+    private boolean audioEmpezado = false;
+private boolean proteccionInicioActiva = true;
+private float tiempoProteccionInicio = 2.0f; // 2 segundos de protección
+private float tiempoDesdeInicio = 0f;
+    
     // ==================== CONSTRUCTORES CORREGIDOS ====================
 
     /**
      * Constructor PRINCIPAL con todos los parámetros
      */
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, 
-                           boolean modoPractica, boolean modoContinuo) {
-        this.canciones = canciones;
-        this.analisisCompleto = analisis;
-        this.modoPractica = modoPractica;
-        this.modoContinuo = modoContinuo;
-        
-        this.flechasActivas = new ArrayList<>();
-        this.flechasGenerator = new FlechasGenerator();
-        this.teclasPresionadas = new EnumMap<>(Direccion.class);
-        this.ultimoTiempoInput = new EnumMap<>(Direccion.class);
-        this.flechasProcesadas = new HashSet<>();
-
-        for (Direccion dir : Direccion.values()) {
-            teclasPresionadas.put(dir, false);
-            ultimoTiempoInput.put(dir, 0f);
-        }
-
-        if (!canciones.isEmpty()) {
-            String primerCancion = canciones.get(0);
-            this.analisisActual = analisis.get(primerCancion);
-        }
-        
-        System.out.println("🎮 GameplayAppState creado:");
-        System.out.println("  Modo: " + (modoContinuo ? "PLAYLIST CONTINUA 🔁" : "CON RESULTADOS 📊"));
-        System.out.println("  Canciones: " + canciones.size());
+   /**
+ * Constructor PRINCIPAL con todos los parámetros incluyendo dificultad
+ */
+ public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
+analisis,  
+                           boolean modoPractica, boolean modoContinuo) { 
+        this.canciones = canciones; 
+        this.analisisCompleto = analisis; 
+        this.modoPractica = modoPractica; 
+        this.modoContinuo = modoContinuo; 
+         
+        this.flechasActivas = new ArrayList<>(); 
+        this.flechasGenerator = new FlechasGenerator(); 
+        this.teclasPresionadas = new EnumMap<>(Direccion.class); 
+        this.ultimoTiempoInput = new EnumMap<>(Direccion.class); 
+        this.flechasProcesadas = new HashSet<>(); 
+ 
+        for (Direccion dir : Direccion.values()) { 
+            teclasPresionadas.put(dir, false); 
+            ultimoTiempoInput.put(dir, 0f); 
+        } 
+ 
+        if (!canciones.isEmpty()) { 
+            String primerCancion = canciones.get(0); 
+            this.analisisActual = analisis.get(primerCancion); 
+        } 
+         
+        System.out.println("GameplayAppState creado:"); 
+        System.out.println("  Modo: " + (modoContinuo ? "PLAYLIST CONTINUA " : "CON RESULTADOS ")); 
+        System.out.println("  Canciones: " + canciones.size()); 
+    } 
+ 
+    /** 
+     * Constructor con dificultad 
+     */ 
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
+analisis,  
+                           Modelo.FlechasGenerator.Difficulty dificultad) { 
+        this(canciones, analisis, false, false); 
+        if (dificultad != null) this.dificultadInicial = dificultad; 
+    } 
+ 
+    /** 
+     * Constructor con modo práctica (sin modo continuo) 
+     */ 
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
+analisis,  
+                           boolean modoPractica) { 
+        this(canciones, analisis, modoPractica, false); 
+    } 
+ 
+    /** 
+     * Constructor básico (sin modo práctica ni continuo) 
+     */ 
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
+analisis) { 
+        this(canciones, analisis, false, false); 
     }
-
-    /**
-     * Constructor con dificultad
-     */
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, 
-                           Modelo.FlechasGenerator.Difficulty dificultad) {
-        this(canciones, analisis, false, false);
-        if (dificultad != null) this.dificultadInicial = dificultad;
-    }
-
-    /**
-     * Constructor con modo práctica (sin modo continuo)
-     */
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis, 
-                           boolean modoPractica) {
-        this(canciones, analisis, modoPractica, false);
-    }
-
-    /**
-     * Constructor básico (sin modo práctica ni continuo)
-     */
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis) {
-        this(canciones, analisis, false, false);
-    }
-    
-    // ==================== INICIALIZACIÓN ====================
-    
     @Override
-    protected void initialize(Application app) {
-        this.app = (MiJuegoDeRitmo) app;
-        this.assetManager = app.getAssetManager();
-        this.gameNode = new Node("GameNode");
-        this.flechaGenerator = new FlechaProceduralGenerator(assetManager);
 
-        this.app.getFlyByCamera().setEnabled(false);
-
-        configurarCamara2D();
-        crearFondo();
-        crearProtagonista();
-        crearZonasDeImpacto();
-
-        setupInputs();
-        inicializarUI();
-        flechasGenerator.setDifficulty(dificultadInicial);
-        
-        if (modoPractica && gameplayUI != null) {
-            gameplayUI.ocultarBarraVida();
-        }
-
-        generarFlechasCancion();
-        inicializarEventosEspacio();
-        reproducirCancionActual();
-
-        System.out.println("✓ Gameplay inicializado correctamente");
-    }
+protected void initialize(Application app) {
+     this.app = (MiJuegoDeRitmo) app; 
+        this.assetManager = app.getAssetManager(); 
+        this.gameNode = new Node("GameNode"); 
+        app.getGuiNode().attachChild(gameNode);
+        this.flechaGenerator = new FlechaProceduralGenerator(assetManager); 
+ 
+        this.app.getFlyByCamera().setEnabled(false); 
+ 
+        configurarCamara2D(); 
+        crearFondo(); 
+        crearProtagonista(); 
+        crearZonasDeImpacto(); 
+ 
+        setupInputs(); 
+        inicializarUI(); 
+        flechasGenerator.setDifficulty(dificultadInicial); 
+         
+        if (modoPractica && gameplayUI != null) { 
+            gameplayUI.ocultarBarraVida(); 
+        } 
+ 
+        generarFlechasCancion(); 
+        inicializarEventosEspacio(); 
+        reproducirCancionActual(); 
+ 
+        System.out.println("✓ Gameplay inicializado correctamente"); 
+   
+}
     
     private void crearZonasDeImpacto() {
         Node nodoZonas = new Node("ZonasImpacto");
         
         float ancho = app.getCamera().getWidth();
         float alto = app.getCamera().getHeight();
-        float centroX = ancho / 2f;
-        float centroY = alto / 2f;
+        float centroX = ancho / 2f - 40f;  // Movido 40px a la izquierda
+        float centroY = alto / 2f - 30f;   // Bajado 30px
         
         float tamanoZona = 80f;
         float separacion = 120f;
@@ -423,44 +437,59 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
     }
     
-    private void crearProtagonista() {
-        System.out.println("✓ Objeto central gestionado por GameplayUI");
-    }
+   
     
     private void inicializarUI() {
-        gameplayUI = new GameplayUI((SimpleApplication) app);
-        gameplayUI.actualizarVida(vida);
-        gameplayUI.actualizarScore(score);
-        gameplayUI.actualizarCombo(combo);
-        
-        menuPausa = new MenuPausa(
-            (SimpleApplication) app,
-            () -> reanudarJuego(),
-            () -> volverAlMenuPrincipal(),
-            () -> toggleMusicaJuego(),
-            (pausado) -> manejarCambioPausa(pausado)
-        );
-        
-        System.out.println("✓ UI inicializada");
+    gameplayUI = new GameplayUI((SimpleApplication) app);
+    gameplayUI.actualizarVida(vida);  // ⭐ Debe recibir 100
+    gameplayUI.actualizarScore(score);
+    gameplayUI.actualizarCombo(combo);
+    
+    menuPausa = new MenuPausa(
+        (SimpleApplication) app,
+        () -> reanudarJuego(),
+        () -> volverAlMenuPrincipal(),
+        () -> toggleMusicaJuego(),
+        (pausado) -> manejarCambioPausa(pausado),
+        gameplayUI
+    );
+    
+    // ⭐ Configurar callback del botón de pausa
+    gameplayUI.setOnClickBotonPausa(() -> {
+        if (menuPausa != null) {
+            System.out.println("🖱 Botón de pausa clickeado - Toggling pausa");
+            menuPausa.togglePausa();
+        }
+    });
+    
+    // ⭐ CRÍTICO: Ocultar barra de vida si es modo práctica
+    if (modoPractica) {
+        System.out.println("🎯 Modo práctica: ocultando barra de vida");
+        gameplayUI.ocultarBarraVida();
     }
     
-    // ==================== CALLBACKS DEL MENÚ ====================
+    System.out.println("✓ UI inicializada");
+}
+   private void manejarCambioPausa(boolean pausado) {
+    System.out.println("🔄 manejarCambioPausa llamado: pausado=" + pausado);
     
-    private void manejarCambioPausa(boolean pausado) {
-        if (audioNode == null) return;
-        
-        if (pausado) {
-            if (audioNode.getStatus() == AudioSource.Status.Playing) {
-                audioNode.pause();
-                System.out.println("  ⏸ Audio pausado");
-            }
-        } else {
-            if (audioNode.getStatus() == AudioSource.Status.Paused) {
-                audioNode.play();
-                System.out.println("  ▶ Audio reanudado");
-            }
+    if (audioNode == null) {
+        System.out.println("⚠ audioNode es null, no se puede pausar/reanudar música");
+        return;
+    }
+
+    if (pausado) {
+        if (audioNode.getStatus() == AudioSource.Status.Playing) {
+            audioNode.pause();
+            System.out.println("  ⏸ Audio pausado");
+        }
+    } else {
+        if (audioNode.getStatus() == AudioSource.Status.Paused) {
+            audioNode.play();
+            System.out.println("  ▶ Audio reanudado");
         }
     }
+}
     
     private void reanudarJuego() {
         // Callback para cuando se reanuda
@@ -522,6 +551,12 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
 
         tiempoTranscurrido += tpf;
+        if (proteccionInicioActiva) {
+    tiempoDesdeInicio += tpf;
+    if (tiempoDesdeInicio >= tiempoProteccionInicio) {
+        proteccionInicioActiva = false;
+        System.out.println("✓ Protección de inicio desactivada - Misses activos");
+    }
 
         procesarInputsContinuos();
 
@@ -561,55 +596,66 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     // ==================== SISTEMA DE RESULTADOS ====================
     
     private void mostrarVentanaResultados() {
-        if (procesandoResultados) return;
-        procesandoResultados = true;
+    if (procesandoResultados) return;
+    procesandoResultados = true;
 
-        final String nombreCancion = canciones.get(cancionActual);
-        final int scoreFinal = score;
-        final int comboFinal = maxCombo;
-        final int perfectosFinal = perfectos;
-        final int buenosFinal = buenos;
-        final int malosFinal = malos;
-        final int missesFinal = misses;
-        final int vidaFinal = vida;
+    final String nombreCancion = canciones.get(cancionActual);
+    final int scoreFinal = score;
+    final int comboFinal = maxCombo;
+    final int perfectosFinal = perfectos;
+    final int buenosFinal = buenos;
+    final int malosFinal = malos;
+    final int missesFinal = misses;
+    final int vidaFinal = vida;
 
-        if (gameplayUI != null) {
-            gameplayUI.ocultarTemporalmente();
+    if (gameplayUI != null) {
+        gameplayUI.ocultarTemporalmente();
+    }
+
+    new Thread(() -> {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
-        new Thread(() -> {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        SwingUtilities.invokeLater(() -> {
+            java.awt.Frame parentFrame = obtenerFramePadre();
 
-            SwingUtilities.invokeLater(() -> {
-                java.awt.Frame parentFrame = obtenerFramePadre();
+            boolean continuar = VentanaResultados.mostrarResultados(
+                parentFrame,
+                nombreCancion,
+                scoreFinal,
+                comboFinal,
+                perfectosFinal,
+                buenosFinal,
+                malosFinal,
+                missesFinal,
+                vidaFinal
+            );
 
-                boolean continuar = VentanaResultados.mostrarResultados(
-                    parentFrame,
-                    nombreCancion,
-                    scoreFinal,
-                    comboFinal,
-                    perfectosFinal,
-                    buenosFinal,
-                    malosFinal,
-                    missesFinal,
-                    vidaFinal
-                );
-
-                app.enqueue(() -> {
-                    if (continuar && cancionActual + 1 < canciones.size()) {
-                        siguienteCancion();
+            app.enqueue(() -> {
+                if (continuar) {
+                    // ⭐ NUEVO: Si es Game Over y presionó Reintentar
+                    if (vidaFinal <= 0) {
+                        System.out.println("🔄 REINTENTANDO después de Game Over...");
+                        reintentarCancionActual();
                     } else {
-                        finalizarJuegoCompleto();
+                        // Continuar a la siguiente canción normalmente
+                        if (cancionActual + 1 < canciones.size()) {
+                            siguienteCancion();
+                        } else {
+                            finalizarJuegoCompleto();
+                        }
                     }
-                    return null;
-                });
+                } else {
+                    finalizarJuegoCompleto();
+                }
+                return null;
             });
-        }, "ResultadosThread").start();
-    }
+        });
+    }, "ResultadosThread").start();
+}
     
     // ==================== SISTEMA DE PLAYLIST ====================
     
@@ -621,7 +667,11 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         analisisActual = analisisCompleto.get(siguienteCancion);
         
         reiniciarEstadoParaNuevaCancion();
-        
+        audioEmpezado = false;
+    proteccionInicioActiva = true;
+    tiempoDesdeInicio = 0f;
+    
+    cancionActual++;
         tiempoTranscurrido = 0f;
         flechasActivas.clear();
         flechasProcesadas.clear();
@@ -645,7 +695,66 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         
         reproducirCancionActual();
     }
+    /**
+ * ⭐ NUEVO: Reinicia la canción actual después de un Game Over
+ */
+private void reintentarCancionActual() {
+    System.out.println("\n=== REINTENTANDO CANCIÓN ACTUAL ===");
     
+    // Reiniciar estadísticas
+    score = 0;
+    vida = 100;
+    combo = 0;
+    maxCombo = 0;
+    perfectos = 0;
+    buenos = 0;
+    malos = 0;
+    misses = 0;
+    
+    // Limpiar estado
+    tiempoTranscurrido = 0f;
+    flechasActivas.clear();
+    flechasProcesadas.clear();
+    gameNode.detachAllChildren();
+    
+    // Limpiar teclas presionadas
+    for (Direccion dir : Direccion.values()) {
+        teclasPresionadas.put(dir, false);
+        ultimoTiempoInput.put(dir, 0f);
+    }
+    
+    // Restaurar UI
+    if (gameplayUI != null) {
+        gameplayUI.mostrarNuevamente();
+        gameplayUI.actualizarVida(vida);
+        gameplayUI.actualizarScore(score);
+        gameplayUI.actualizarCombo(combo);
+    }
+    
+    // Regenerar flechas y eventos
+    generarFlechasCancion();
+    inicializarEventosEspacio();
+    audioEmpezado = false;
+    proteccionInicioActiva = true;
+    tiempoDesdeInicio = 0f;
+    
+    cancionActual++;
+    // Reiniciar flags
+    juegoTerminado = false;
+    resultadosMostrados = false;
+    procesandoResultados = false;
+    audioEmpezado = false;
+    proteccionInicioActiva = true;
+    tiempoDesdeInicio = 0f;
+    // Habilitar gameplay
+    this.setEnabled(true);
+    
+    
+    // Reproducir canción nuevamente
+    reproducirCancionActual();
+    
+    System.out.println("✓ Canción reiniciada - ¡Buena suerte!");
+}
     private void reiniciarEstadoParaNuevaCancion() {
         perfectos = 0;
         buenos = 0;
@@ -713,16 +822,21 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
             }
             
             audioNode = crearAudioNodeDesdeArchivo(archivoAudio);
-            
+    
             if (audioNode != null) {
-                audioNode.setPositional(false);
-                audioNode.setVolume(app.getMasterVolume());
-                audioNode.setLooping(false);
-                audioNode.play();
-                
-                float duracion = analisisActual.getDuracionTotal();
-                System.out.println("  ⏱ Duración: " + formatearTiempo(duracion));
-                System.out.println("  ✓ Reproduciendo correctamente");
+    audioNode.setPositional(false);
+    audioNode.setVolume(app.getMasterVolume());
+    audioNode.setLooping(false);
+    audioNode.play();
+    
+    // ⭐ NUEVO: Activar protección de inicio
+    audioEmpezado = true;
+    proteccionInicioActiva = true;
+    tiempoDesdeInicio = 0f;
+    
+    float duracion = analisisActual.getDuracionTotal();
+    System.out.println("  ⏱ Duración: " + formatearTiempo(duracion));
+    System.out.println("  ✓ Reproduciendo correctamente");
                 
                 if (analisisActual != null) {
                     float bpm = (float) analisisActual.getBPMEstimado();
@@ -1181,7 +1295,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         }
 
         if (t > evento + ventanaMiss(evento)) {
-            registrarMiss();
+            if (audioEmpezado && !proteccionInicioActiva) registrarMiss();
             avanzarEventoEspacio();
         }
     }
@@ -1665,4 +1779,7 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
         gameNode.removeFromParent();
         System.out.println("⏸ GameplayAppState deshabilitado");
     }
+    private void crearProtagonista() {
+    System.out.println("✓ Objeto central gestionado por GameplayUI");
+}
 }
