@@ -218,7 +218,7 @@ protected void initialize(Application app) {
      this.app = (MiJuegoDeRitmo) app; 
         this.assetManager = app.getAssetManager(); 
         this.gameNode = new Node("GameNode"); 
-        app.getGuiNode().attachChild(gameNode);
+        this.app.getGuiNode().attachChild(gameNode);
         this.flechaGenerator = new FlechaProceduralGenerator(assetManager); 
  
         this.app.getFlyByCamera().setEnabled(false); 
@@ -574,24 +574,25 @@ protected void initialize(Application app) {
         if (audioNode != null && audioNode.getStatus() == AudioSource.Status.Stopped && !juegoTerminado) {
             terminarCancion();
         }
-
-        if (!modoPractica && vida <= 0 && !juegoTerminado) {
-            terminarJuego("game_over");
-        }
+if (!modoPractica && vida <= 0 && !juegoTerminado) {
+        terminarJuego("game_over");
     }
+    }
+    }
+
     
-    private void terminarJuego(String razon) {
-        if (juegoTerminado) return;
-        
-        juegoTerminado = true;
-        System.out.println("\n=== JUEGO TERMINADO: " + razon + " ===");
+  private void terminarJuego(String razon) {
+    if (juegoTerminado) return;
+    
+    juegoTerminado = true;
+    System.out.println("\n=== JUEGO TERMINADO: " + razon + " ===");
 
-        if (audioNode != null) {
-            audioNode.stop();
-        }
-
-        this.setEnabled(false);
+    if (audioNode != null) {
+        audioNode.stop();
     }
+
+    this.setEnabled(false);  // ✅ Corregido: sin operador de comparación
+}
     
     // ==================== SISTEMA DE RESULTADOS ====================
     
