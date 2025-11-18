@@ -65,34 +65,33 @@ public class FlechaControl extends AbstractControl {
     private boolean fueErrada = false;
     
     // ==================== CONSTRUCTOR ====================
-    public FlechaControl(TipoFlecha tipo, Direccion direccion, Vector3f posicionInicial,
-                        Vector3f target, float velocidad, float beatTime, Material material) {
-        this.tipo = tipo;
-        this.direccion = direccion;
-        this.posicionInicial = posicionInicial.clone();
-        this.target = target.clone();
-        this.velocidad = velocidad;
-        this.beatTime = beatTime;
-        this.material = material;
-        
-        // ⭐ NUEVO: Calcular dirección de movimiento una sola vez
-        this.direccionMovimiento = target.subtract(posicionInicial).normalize();
-        
-        // Para flechas doradas: calcular dirección invertida
-        if (tipo == TipoFlecha.DORADA) {
-            this.distanciaInversion = posicionInicial.distance(target) / 2f;
-            // La dirección invertida es exactamente la opuesta
-            this.direccionMovimientoInvertida = direccionMovimiento.negate();
-        }
-        
-        this.colorBase = material.getParamValue("Color");
-        if (this.colorBase == null) {
-            this.colorBase = ColorRGBA.White.clone();
-        }
-        
-        aplicarEfectoInicial();
+  public FlechaControl(TipoFlecha tipo, Direccion direccion, Vector3f posicionInicial, Vector3f target, float velocidad, float beatTime, Material materialFlecha) {
+    this.tipo = tipo;
+    this.direccion = direccion;
+    this.posicionInicial = posicionInicial.clone();
+    this.target = target.clone();
+    this.velocidad = velocidad;
+    this.beatTime = beatTime;
+    this.material = materialFlecha;  // ✅ Usar materialFlecha, no material
+    
+    // ⭐ NUEVO: Calcular dirección de movimiento una sola vez
+    this.direccionMovimiento = target.subtract(posicionInicial).normalize();
+    
+    // Para flechas doradas: calcular dirección invertida
+    if (tipo == TipoFlecha.DORADA) {
+        this.distanciaInversion = posicionInicial.distance(target) / 2f;
+        // La dirección invertida es exactamente la opuesta
+        this.direccionMovimientoInvertida = direccionMovimiento.negate();
     }
     
+    // ✅ Ahora usar this.material porque ya está asignado
+    this.colorBase = this.material.getParamValue("Color");
+    if (this.colorBase == null) {
+        this.colorBase = ColorRGBA.White.clone();
+    }
+    
+    aplicarEfectoInicial();
+}
     // ==================== MÉTODOS PRINCIPALES ====================
     
     private void aplicarEfectoInicial() {

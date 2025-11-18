@@ -50,28 +50,57 @@ public class MiJuegoDeRitmo extends SimpleApplication {
         app.start();
     }
 
-    @Override
-    public void simpleInitApp() {
-        this.setDisplayFps(true);
-        this.setDisplayStatView(false);
-        
-        // ⭐ NUEVO: Habilitar y mostrar el cursor
-        inputManager.setCursorVisible(true);
-        
-        // ⭐ NUEVO: Deshabilitar FlyByCamera para que no interfiera con el mouse
-        flyCam.setEnabled(false);
-        
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("🎮 JUEGO DE RITMO - INICIANDO");
-        System.out.println("=".repeat(60));
+   @Override
+public void simpleInitApp() {
+    this.setDisplayFps(true);
+    this.setDisplayStatView(false);
+    
+    // ⭐ CRÍTICO: ELIMINAR MAPEO DE ESC QUE CIERRA LA APP
+    inputManager.deleteMapping(SimpleApplication.INPUT_MAPPING_EXIT);
+    
+    // ⭐ NUEVO: Habilitar y mostrar el cursor
+    inputManager.setCursorVisible(true);
+    
+    // ⭐ NUEVO: Deshabilitar FlyByCamera para que no interfiera con el mouse
+    flyCam.setEnabled(false);
+    
+    System.out.println("\n" + "=".repeat(60));
+    System.out.println("🎮 JUEGO DE RITMO - INICIANDO");
+    System.out.println("=".repeat(60));
+    System.out.println("⚠️ ESC deshabilitado para cerrar - usa el menú de pausa");
 
-        // ⭐ INICIAR CON EL MENÚ PRINCIPAL
-        iniciarConMenu();
+    // ⭐ INICIAR CON EL MENÚ PRINCIPAL
+    iniciarConMenu();
 
-        System.out.println("✓ Aplicación inicializada correctamente");
-        System.out.println("✓ Mouse habilitado y visible");
-        System.out.println("=".repeat(60) + "\n");
-    }
+    System.out.println("✓ Aplicación inicializada correctamente");
+    System.out.println("✓ Mouse habilitado y visible");
+    System.out.println("=".repeat(60) + "\n");
+    
+    // ⭐ PROTECCIÓN: Confirmar antes de cerrar
+    javax.swing.SwingUtilities.invokeLater(() -> {
+        for (java.awt.Window window : java.awt.Window.getWindows()) {
+            if (window instanceof java.awt.Frame) {
+                window.addWindowListener(new java.awt.event.WindowAdapter() {
+                    @Override
+                    public void windowClosing(java.awt.event.WindowEvent e) {
+                        int respuesta = javax.swing.JOptionPane.showConfirmDialog(
+                            window,
+                            "¿Seguro que quieres salir del juego?",
+                            "Confirmar salida",
+                            javax.swing.JOptionPane.YES_NO_OPTION,
+                            javax.swing.JOptionPane.QUESTION_MESSAGE
+                        );
+                        
+                        if (respuesta == javax.swing.JOptionPane.YES_OPTION) {
+                            stop();
+                        }
+                    }
+                });
+            }
+        }
+    });
+
+}
     /**
      * ⭐ Inicia el juego mostrando el menú principal
      */

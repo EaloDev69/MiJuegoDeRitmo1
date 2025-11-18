@@ -145,20 +145,13 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     private int scoreTotalSession = 0;
     
     private boolean audioEmpezado = false;
-private boolean proteccionInicioActiva = true;
-private float tiempoProteccionInicio = 2.0f; // 2 segundos de protección
-private float tiempoDesdeInicio = 0f;
+    private boolean proteccionInicioActiva = true;
+    private float tiempoProteccionInicio = 2.0f;
+    private float tiempoDesdeInicio = 0f;
     
     // ==================== CONSTRUCTORES CORREGIDOS ====================
 
-    /**
-     * Constructor PRINCIPAL con todos los parámetros
-     */
-   /**
- * Constructor PRINCIPAL con todos los parámetros incluyendo dificultad
- */
- public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
-analisis,  
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis,  
                            boolean modoPractica, boolean modoContinuo) { 
         this.canciones = canciones; 
         this.analisisCompleto = analisis; 
@@ -186,39 +179,27 @@ analisis,
         System.out.println("  Canciones: " + canciones.size()); 
     } 
  
-    /** 
-     * Constructor con dificultad 
-     */ 
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
-analisis,  
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis,  
                            Modelo.FlechasGenerator.Difficulty dificultad) { 
         this(canciones, analisis, false, false); 
         if (dificultad != null) this.dificultadInicial = dificultad; 
     } 
  
-    /** 
-     * Constructor con modo práctica (sin modo continuo) 
-     */ 
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
-analisis,  
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis,  
                            boolean modoPractica) { 
         this(canciones, analisis, modoPractica, false); 
     } 
  
-    /** 
-     * Constructor básico (sin modo práctica ni continuo) 
-     */ 
-    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> 
-analisis) { 
+    public GameplayAppState(List<String> canciones, Map<String, ResultadoAnalisis> analisis) { 
         this(canciones, analisis, false, false); 
     }
-    @Override
 
-protected void initialize(Application app) {
-     this.app = (MiJuegoDeRitmo) app; 
+    @Override
+    protected void initialize(Application app) {
+        this.app = (MiJuegoDeRitmo) app; 
         this.assetManager = app.getAssetManager(); 
         this.gameNode = new Node("GameNode"); 
-        this.app.getGuiNode().attachChild(gameNode);
+
         this.flechaGenerator = new FlechaProceduralGenerator(assetManager); 
  
         this.app.getFlyByCamera().setEnabled(false); 
@@ -241,16 +222,15 @@ protected void initialize(Application app) {
         reproducirCancionActual(); 
  
         System.out.println("✓ Gameplay inicializado correctamente"); 
-   
-}
+    }
     
     private void crearZonasDeImpacto() {
         Node nodoZonas = new Node("ZonasImpacto");
         
         float ancho = app.getCamera().getWidth();
         float alto = app.getCamera().getHeight();
-        float centroX = ancho / 2f - 40f;  // Movido 40px a la izquierda
-        float centroY = alto / 2f - 30f;   // Bajado 30px
+        float centroX = ancho / 2f - 40f;
+        float centroY = alto / 2f - 30f;
         
         float tamanoZona = 80f;
         float separacion = 120f;
@@ -437,59 +417,56 @@ protected void initialize(Application app) {
         }
     }
     
-   
-    
     private void inicializarUI() {
-    gameplayUI = new GameplayUI((SimpleApplication) app);
-    gameplayUI.actualizarVida(vida);  // ⭐ Debe recibir 100
-    gameplayUI.actualizarScore(score);
-    gameplayUI.actualizarCombo(combo);
-    
-    menuPausa = new MenuPausa(
-        (SimpleApplication) app,
-        () -> reanudarJuego(),
-        () -> volverAlMenuPrincipal(),
-        () -> toggleMusicaJuego(),
-        (pausado) -> manejarCambioPausa(pausado),
-        gameplayUI
-    );
-    
-    // ⭐ Configurar callback del botón de pausa
-    gameplayUI.setOnClickBotonPausa(() -> {
-        if (menuPausa != null) {
-            System.out.println("🖱 Botón de pausa clickeado - Toggling pausa");
-            menuPausa.togglePausa();
+        gameplayUI = new GameplayUI((SimpleApplication) app);
+        gameplayUI.actualizarVida(vida);
+        gameplayUI.actualizarScore(score);
+        gameplayUI.actualizarCombo(combo);
+        
+        menuPausa = new MenuPausa(
+            (SimpleApplication) app,
+            () -> reanudarJuego(),
+            () -> volverAlMenuPrincipal(),
+            () -> toggleMusicaJuego(),
+            (pausado) -> manejarCambioPausa(pausado),
+            gameplayUI
+        );
+        
+        gameplayUI.setOnClickBotonPausa(() -> {
+            if (menuPausa != null) {
+                System.out.println("🖱 Botón de pausa clickeado - Toggling pausa");
+                menuPausa.togglePausa();
+            }
+        });
+        
+        if (modoPractica) {
+            System.out.println("🎯 Modo práctica: ocultando barra de vida");
+            gameplayUI.ocultarBarraVida();
         }
-    });
-    
-    // ⭐ CRÍTICO: Ocultar barra de vida si es modo práctica
-    if (modoPractica) {
-        System.out.println("🎯 Modo práctica: ocultando barra de vida");
-        gameplayUI.ocultarBarraVida();
-    }
-    
-    System.out.println("✓ UI inicializada");
-}
-   private void manejarCambioPausa(boolean pausado) {
-    System.out.println("🔄 manejarCambioPausa llamado: pausado=" + pausado);
-    
-    if (audioNode == null) {
-        System.out.println("⚠ audioNode es null, no se puede pausar/reanudar música");
-        return;
+        
+        System.out.println("✓ UI inicializada");
     }
 
-    if (pausado) {
-        if (audioNode.getStatus() == AudioSource.Status.Playing) {
-            audioNode.pause();
-            System.out.println("  ⏸ Audio pausado");
+    private void manejarCambioPausa(boolean pausado) {
+        System.out.println("🔄 manejarCambioPausa llamado: pausado=" + pausado);
+        
+        if (audioNode == null) {
+            System.out.println("⚠ audioNode es null, no se puede pausar/reanudar música");
+            return;
         }
-    } else {
-        if (audioNode.getStatus() == AudioSource.Status.Paused) {
-            audioNode.play();
-            System.out.println("  ▶ Audio reanudado");
+
+        if (pausado) {
+            if (audioNode.getStatus() == AudioSource.Status.Playing) {
+                audioNode.pause();
+                System.out.println("  ⏸ Audio pausado");
+            }
+        } else {
+            if (audioNode.getStatus() == AudioSource.Status.Paused) {
+                audioNode.play();
+                System.out.println("  ▶ Audio reanudado");
+            }
         }
     }
-}
     
     private void reanudarJuego() {
         // Callback para cuando se reanuda
@@ -516,8 +493,6 @@ protected void initialize(Application app) {
             }
         }
     }
-    
-    // ==================== UPDATE PRINCIPAL ====================
     
     @Override
     public void update(float tpf) {
@@ -552,11 +527,12 @@ protected void initialize(Application app) {
 
         tiempoTranscurrido += tpf;
         if (proteccionInicioActiva) {
-    tiempoDesdeInicio += tpf;
-    if (tiempoDesdeInicio >= tiempoProteccionInicio) {
-        proteccionInicioActiva = false;
-        System.out.println("✓ Protección de inicio desactivada - Misses activos");
-    }
+            tiempoDesdeInicio += tpf;
+            if (tiempoDesdeInicio >= tiempoProteccionInicio) {
+                proteccionInicioActiva = false;
+                System.out.println("✓ Protección de inicio desactivada - Misses activos");
+            }
+        }
 
         procesarInputsContinuos();
 
@@ -574,91 +550,84 @@ protected void initialize(Application app) {
         if (audioNode != null && audioNode.getStatus() == AudioSource.Status.Stopped && !juegoTerminado) {
             terminarCancion();
         }
-if (!modoPractica && vida <= 0 && !juegoTerminado) {
-        terminarJuego("game_over");
-    }
-    }
-    }
 
-    
-  private void terminarJuego(String razon) {
-    if (juegoTerminado) return;
-    
-    juegoTerminado = true;
-    System.out.println("\n=== JUEGO TERMINADO: " + razon + " ===");
-
-    if (audioNode != null) {
-        audioNode.stop();
+        if (!modoPractica && vida <= 0 && !juegoTerminado) {
+            terminarJuego("game_over");
+        }
     }
 
-    this.setEnabled(false);  // ✅ Corregido: sin operador de comparación
-}
-    
-    // ==================== SISTEMA DE RESULTADOS ====================
-    
-    private void mostrarVentanaResultados() {
-    if (procesandoResultados) return;
-    procesandoResultados = true;
+    private void terminarJuego(String razon) {
+        if (juegoTerminado) return;
+        
+        juegoTerminado = true;
+        System.out.println("\n=== JUEGO TERMINADO: " + razon + " ===");
 
-    final String nombreCancion = canciones.get(cancionActual);
-    final int scoreFinal = score;
-    final int comboFinal = maxCombo;
-    final int perfectosFinal = perfectos;
-    final int buenosFinal = buenos;
-    final int malosFinal = malos;
-    final int missesFinal = misses;
-    final int vidaFinal = vida;
-
-    if (gameplayUI != null) {
-        gameplayUI.ocultarTemporalmente();
-    }
-
-    new Thread(() -> {
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if (audioNode != null) {
+            audioNode.stop();
         }
 
-        SwingUtilities.invokeLater(() -> {
-            java.awt.Frame parentFrame = obtenerFramePadre();
-
-            boolean continuar = VentanaResultados.mostrarResultados(
-                parentFrame,
-                nombreCancion,
-                scoreFinal,
-                comboFinal,
-                perfectosFinal,
-                buenosFinal,
-                malosFinal,
-                missesFinal,
-                vidaFinal
-            );
-
-            app.enqueue(() -> {
-                if (continuar) {
-                    // ⭐ NUEVO: Si es Game Over y presionó Reintentar
-                    if (vidaFinal <= 0) {
-                        System.out.println("🔄 REINTENTANDO después de Game Over...");
-                        reintentarCancionActual();
-                    } else {
-                        // Continuar a la siguiente canción normalmente
-                        if (cancionActual + 1 < canciones.size()) {
-                            siguienteCancion();
-                        } else {
-                            finalizarJuegoCompleto();
-                        }
-                    }
-                } else {
-                    finalizarJuegoCompleto();
-                }
-                return null;
-            });
-        });
-    }, "ResultadosThread").start();
-}
+        this.setEnabled(false);
+    }
     
-    // ==================== SISTEMA DE PLAYLIST ====================
+    private void mostrarVentanaResultados() {
+        if (procesandoResultados) return;
+        procesandoResultados = true;
+
+        final String nombreCancion = canciones.get(cancionActual);
+        final int scoreFinal = score;
+        final int comboFinal = maxCombo;
+        final int perfectosFinal = perfectos;
+        final int buenosFinal = buenos;
+        final int malosFinal = malos;
+        final int missesFinal = misses;
+        final int vidaFinal = vida;
+
+        if (gameplayUI != null) {
+            gameplayUI.ocultarTemporalmente();
+        }
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            SwingUtilities.invokeLater(() -> {
+                java.awt.Frame parentFrame = obtenerFramePadre();
+
+                boolean continuar = VentanaResultados.mostrarResultados(
+                    parentFrame,
+                    nombreCancion,
+                    scoreFinal,
+                    comboFinal,
+                    perfectosFinal,
+                    buenosFinal,
+                    malosFinal,
+                    missesFinal,
+                    vidaFinal
+                );
+
+                app.enqueue(() -> {
+                    if (continuar) {
+                        if (vidaFinal <= 0) {
+                            System.out.println("🔄 REINTENTANDO después de Game Over...");
+                            reintentarCancionActual();
+                        } else {
+                            if (cancionActual + 1 < canciones.size()) {
+                                siguienteCancion();
+                            } else {
+                                finalizarJuegoCompleto();
+                            }
+                        }
+                    } else {
+                        finalizarJuegoCompleto();
+                    }
+                    return null;
+                });
+            });
+        }, "ResultadosThread").start();
+    }
     
     private void siguienteCancion() {
         System.out.println("\n=== SIGUIENTE CANCIÓN ===");
@@ -669,10 +638,9 @@ if (!modoPractica && vida <= 0 && !juegoTerminado) {
         
         reiniciarEstadoParaNuevaCancion();
         audioEmpezado = false;
-    proteccionInicioActiva = true;
-    tiempoDesdeInicio = 0f;
-    
-    cancionActual++;
+        proteccionInicioActiva = true;
+        tiempoDesdeInicio = 0f;
+        
         tiempoTranscurrido = 0f;
         flechasActivas.clear();
         flechasProcesadas.clear();
@@ -696,66 +664,56 @@ if (!modoPractica && vida <= 0 && !juegoTerminado) {
         
         reproducirCancionActual();
     }
-    /**
- * ⭐ NUEVO: Reinicia la canción actual después de un Game Over
- */
-private void reintentarCancionActual() {
-    System.out.println("\n=== REINTENTANDO CANCIÓN ACTUAL ===");
-    
-    // Reiniciar estadísticas
-    score = 0;
-    vida = 100;
-    combo = 0;
-    maxCombo = 0;
-    perfectos = 0;
-    buenos = 0;
-    malos = 0;
-    misses = 0;
-    
-    // Limpiar estado
-    tiempoTranscurrido = 0f;
-    flechasActivas.clear();
-    flechasProcesadas.clear();
-    gameNode.detachAllChildren();
-    
-    // Limpiar teclas presionadas
-    for (Direccion dir : Direccion.values()) {
-        teclasPresionadas.put(dir, false);
-        ultimoTiempoInput.put(dir, 0f);
+
+    private void reintentarCancionActual() {
+        System.out.println("\n=== REINTENTANDO CANCIÓN ACTUAL ===");
+        
+        score = 0;
+        vida = 100;
+        combo = 0;
+        maxCombo = 0;
+        perfectos = 0;
+        buenos = 0;
+        malos = 0;
+        misses = 0;
+        
+        tiempoTranscurrido = 0f;
+        flechasActivas.clear();
+        flechasProcesadas.clear();
+        gameNode.detachAllChildren();
+        
+        for (Direccion dir : Direccion.values()) {
+            teclasPresionadas.put(dir, false);
+            ultimoTiempoInput.put(dir, 0f);
+        }
+        
+        if (gameplayUI != null) {
+            gameplayUI.mostrarNuevamente();
+            gameplayUI.actualizarVida(vida);
+            gameplayUI.actualizarScore(score);
+            gameplayUI.actualizarCombo(combo);
+        }
+        
+        generarFlechasCancion();
+        inicializarEventosEspacio();
+        audioEmpezado = false;
+        proteccionInicioActiva = true;
+        tiempoDesdeInicio = 0f;
+        
+        juegoTerminado = false;
+        resultadosMostrados = false;
+        procesandoResultados = false;
+        audioEmpezado = false;
+        proteccionInicioActiva = true;
+        tiempoDesdeInicio = 0f;
+        
+        this.setEnabled(true);
+        
+        reproducirCancionActual();
+        
+        System.out.println("✓ Canción reiniciada - ¡Buena suerte!");
     }
-    
-    // Restaurar UI
-    if (gameplayUI != null) {
-        gameplayUI.mostrarNuevamente();
-        gameplayUI.actualizarVida(vida);
-        gameplayUI.actualizarScore(score);
-        gameplayUI.actualizarCombo(combo);
-    }
-    
-    // Regenerar flechas y eventos
-    generarFlechasCancion();
-    inicializarEventosEspacio();
-    audioEmpezado = false;
-    proteccionInicioActiva = true;
-    tiempoDesdeInicio = 0f;
-    
-    cancionActual++;
-    // Reiniciar flags
-    juegoTerminado = false;
-    resultadosMostrados = false;
-    procesandoResultados = false;
-    audioEmpezado = false;
-    proteccionInicioActiva = true;
-    tiempoDesdeInicio = 0f;
-    // Habilitar gameplay
-    this.setEnabled(true);
-    
-    
-    // Reproducir canción nuevamente
-    reproducirCancionActual();
-    
-    System.out.println("✓ Canción reiniciada - ¡Buena suerte!");
-}
+
     private void reiniciarEstadoParaNuevaCancion() {
         perfectos = 0;
         buenos = 0;
@@ -778,17 +736,13 @@ private void reintentarCancionActual() {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
-            }
-            
-            app.enqueue(() -> {
+            }app.enqueue(() -> {
                 cleanup(app);
                 app.volverAlMenu();
                 return null;
             });
         }, "FinJuegoThread").start();
     }
-    
-    // ==================== SISTEMA DE AUDIO ====================
     
     public void setModoContinuo(boolean continuo) {
         this.modoContinuo = continuo;
@@ -825,19 +779,18 @@ private void reintentarCancionActual() {
             audioNode = crearAudioNodeDesdeArchivo(archivoAudio);
     
             if (audioNode != null) {
-    audioNode.setPositional(false);
-    audioNode.setVolume(app.getMasterVolume());
-    audioNode.setLooping(false);
-    audioNode.play();
-    
-    // ⭐ NUEVO: Activar protección de inicio
-    audioEmpezado = true;
-    proteccionInicioActiva = true;
-    tiempoDesdeInicio = 0f;
-    
-    float duracion = analisisActual.getDuracionTotal();
-    System.out.println("  ⏱ Duración: " + formatearTiempo(duracion));
-    System.out.println("  ✓ Reproduciendo correctamente");
+                audioNode.setPositional(false);
+                audioNode.setVolume(app.getMasterVolume());
+                audioNode.setLooping(false);
+                audioNode.play();
+                
+                audioEmpezado = true;
+                proteccionInicioActiva = true;
+                tiempoDesdeInicio = 0f;
+                
+                float duracion = analisisActual.getDuracionTotal();
+                System.out.println("  ⏱ Duración: " + formatearTiempo(duracion));
+                System.out.println("  ✓ Reproduciendo correctamente");
                 
                 if (analisisActual != null) {
                     float bpm = (float) analisisActual.getBPMEstimado();
@@ -852,7 +805,7 @@ private void reintentarCancionActual() {
                 }
             } else {
                 throw new Exception("No se pudo crear AudioNode");
-            }
+            } 
             
         } catch (Exception e) {
             System.err.println("  ❌ Error: " + e.getMessage());
@@ -905,8 +858,6 @@ private void reintentarCancionActual() {
         int seg = (int)(segundos % 60);
         return min + ":" + String.format("%02d", seg);
     }
-    
-    // ==================== SISTEMA DE FLECHAS ====================
     
     private void generarFlechasCancion() {
         if (analisisActual == null) {
@@ -987,6 +938,37 @@ private void reintentarCancionActual() {
         System.out.println("  Eventos ESPACIO: " + this.eventosEspacio.size());
     }
     
+    private void crearFlechaEnPantalla(FlechaData flechaData) {
+    Geometry flechaGeom = flechaGenerator.crearFlecha(
+        flechaData.getTipo(),
+        flechaData.getDireccion()
+    );
+    
+    float ancho = app.getCamera().getWidth();
+    float alto = app.getCamera().getHeight();
+    Vector3f posInicial = flechaData.getDireccion().getPosicionSpawn(ancho, alto);
+    Vector3f posTarget = flechaData.getDireccion().getPosicionTarget(ancho, alto);
+    
+    float tamano = 70f;
+    flechaGeom.setLocalTranslation(posInicial.x - tamano/2, posInicial.y - tamano/2, 1);
+    
+    // ✅ Obtenemos el Material de la geometría creada
+    Material materialFlecha = flechaGeom.getMaterial();
+    
+    FlechaControl control = new FlechaControl(
+        flechaData.getTipo(),
+        flechaData.getDireccion(),
+        posInicial,
+        posTarget,
+        flechaData.getVelocidad(),
+        flechaData.getBeatTime(),
+        materialFlecha);  // ✅ Pasamos el material
+    
+    flechaGeom.addControl(control);
+    gameNode.attachChild(flechaGeom);
+    flechasActivas.add(flechaGeom);
+}
+    
     private void generarFlechasPorTiempo() {
         while (indiceFlechaActual < flechasAGenerar.size()) {
             FlechaData flechaData = flechasAGenerar.get(indiceFlechaActual);
@@ -1001,119 +983,102 @@ private void reintentarCancionActual() {
         }
     }
     
-    private void crearFlechaEnPantalla(FlechaData flechaData) {
-        Geometry flechaGeom = flechaGenerator.crearFlecha(
-            flechaData.getTipo(),
-            flechaData.getDireccion()
-        );
-        
-        float ancho = app.getCamera().getWidth();
-        float alto = app.getCamera().getHeight();
-        Vector3f posInicial = flechaData.getDireccion().getPosicionSpawn(ancho, alto);
-        Vector3f posTarget = flechaData.getDireccion().getPosicionTarget(ancho, alto);
-        
-        float tamano = 70f;
-        flechaGeom.setLocalTranslation(posInicial.x - tamano/2, posInicial.y - tamano/2, 1);
-        
-        FlechaControl control = new FlechaControl(
-            flechaData.getTipo(),
-            flechaData.getDireccion(),
-            posInicial,
-            posTarget,
-            flechaData.getVelocidad(),
-            flechaData.getBeatTime(),
-            flechaGeom.getMaterial()
-        );
-        
-        flechaGeom.addControl(control);
-        gameNode.attachChild(flechaGeom);
-        flechasActivas.add(flechaGeom);
-    }
+   
     
     private void verificarMisses() {
-        Iterator<Geometry> iterator = flechasActivas.iterator();
-        while (iterator.hasNext()) {
-            Geometry flecha = iterator.next();
-            FlechaControl controlN = flecha.getControl(FlechaControl.class);
-            FlechaDoradaControl controlD = flecha.getControl(FlechaDoradaControl.class);
-            AbstractControl control = controlN != null ? controlN : controlD;
-            
-            if (controlN != null) {
-                if (controlN.fueErrada() && !controlN.fueGolpeada()) {
-                    if (!flechasProcesadas.contains(control)) {
-                        registrarMiss();
-                        flechasProcesadas.add(control);
-                    }
-                    flecha.removeFromParent();
-                    iterator.remove();
-                } else if (controlN.fueGolpeada()) {
-                    if (flecha.getParent() == null) {
-                        iterator.remove();
-                    }
+    if (juegoTerminado) {
+        return;
+    }
+    
+    Iterator<Geometry> iterator = flechasActivas.iterator();
+    
+    while (iterator.hasNext()) {
+        Geometry flecha = iterator.next();
+        FlechaControl controlN = flecha.getControl(FlechaControl.class);
+        FlechaDoradaControl controlD = flecha.getControl(FlechaDoradaControl.class);
+        AbstractControl control = controlN != null ? controlN : controlD;
+        
+        if (controlN != null) {
+            if (controlN.fueErrada() && !controlN.fueGolpeada()) {
+                if (!flechasProcesadas.contains(control)) {
+                    registrarMiss();
+                    flechasProcesadas.add(control);
                 }
-            } else if (controlD != null) {
-                if (controlD.fueErrada() && !controlD.fueGolpeada()) {
-                    if (!flechasProcesadas.contains(control)) {
-                        registrarMiss();
-                        flechasProcesadas.add(control);
-                    }
-                    flecha.removeFromParent();
+                flecha.removeFromParent();
+                iterator.remove();
+            } else if (controlN.fueGolpeada()) {
+                if (flecha.getParent() == null) {
                     iterator.remove();
-                } else if (controlD.fueGolpeada()) {
-                    if (flecha.getParent() == null) {
-                        iterator.remove();
-                    }
+                }
+            }
+        } else if (controlD != null) {
+            if (controlD.fueErrada() && !controlD.fueGolpeada()) {
+                if (!flechasProcesadas.contains(control)) {
+                    registrarMiss();
+                    flechasProcesadas.add(control);
+                }
+                flecha.removeFromParent();
+                iterator.remove();
+            } else if (controlD.fueGolpeada()) {
+                if (flecha.getParent() == null) {
+                    iterator.remove();
                 }
             }
         }
     }
-    
-    // ==================== SISTEMA DE INPUT ====================
-    
+}
     private void setupInputs() {
-        mappingTeclas = new HashMap<>();
-        
-        mappingTeclas.put(Direccion.ARRIBA, "arriba");
-        mappingTeclas.put(Direccion.ABAJO, "abajo");
-        mappingTeclas.put(Direccion.IZQUIERDA, "izquierda");
-        mappingTeclas.put(Direccion.DERECHA, "derecha");
-        mappingTeclas.put(Direccion.ESPACIO, "espacio");
+    mappingTeclas = new HashMap<>();
+    
+    mappingTeclas.put(Direccion.ARRIBA, "arriba");
+    mappingTeclas.put(Direccion.ABAJO, "abajo");
+    mappingTeclas.put(Direccion.IZQUIERDA, "izquierda");
+    mappingTeclas.put(Direccion.DERECHA, "derecha");
+    mappingTeclas.put(Direccion.ESPACIO, "espacio");
 
-        try {
-            for (String mapping : mappingTeclas.values()) {
-                app.getInputManager().deleteMapping(mapping);
-            }
-        } catch (Exception e) {}
-
-        app.getInputManager().addMapping("arriba",
-            new KeyTrigger(KeyInput.KEY_W),
-            new KeyTrigger(KeyInput.KEY_UP)
-        );
-
-        app.getInputManager().addMapping("abajo",
-            new KeyTrigger(KeyInput.KEY_S),
-            new KeyTrigger(KeyInput.KEY_DOWN)
-        );
-
-        app.getInputManager().addMapping("izquierda",
-            new KeyTrigger(KeyInput.KEY_A),
-            new KeyTrigger(KeyInput.KEY_LEFT)
-        );
-
-        app.getInputManager().addMapping("derecha",
-            new KeyTrigger(KeyInput.KEY_D),
-            new KeyTrigger(KeyInput.KEY_RIGHT)
-        );
-
-        app.getInputManager().addMapping("espacio",
-            new KeyTrigger(KeyInput.KEY_SPACE)
-        );
-
-        app.getInputManager().addListener(this,
-            "arriba", "abajo", "izquierda", "derecha", "espacio");
-
-        System.out.println("✓ Inputs configurados");
+    // ⭐ CRÍTICO: Eliminar TODOS los mapeos existentes, incluyendo ESC
+    try {
+        app.getInputManager().deleteMapping(SimpleApplication.INPUT_MAPPING_EXIT);
+        for (String mapping : mappingTeclas.values()) {
+            app.getInputManager().deleteMapping(mapping);
+        }
+        app.getInputManager().deleteMapping("SIMPLEAPP_Exit");
+        app.getInputManager().deleteMapping("Pausa");
+    } catch (Exception e) {
+        // Ignorar si no existen
     }
+
+    // Configurar teclas del juego
+    app.getInputManager().addMapping("arriba",
+        new KeyTrigger(KeyInput.KEY_W),
+        new KeyTrigger(KeyInput.KEY_UP)
+    );
+
+    app.getInputManager().addMapping("abajo",
+        new KeyTrigger(KeyInput.KEY_S),
+        new KeyTrigger(KeyInput.KEY_DOWN)
+    );
+
+    app.getInputManager().addMapping("izquierda",
+        new KeyTrigger(KeyInput.KEY_A),
+        new KeyTrigger(KeyInput.KEY_LEFT)
+    );
+
+    app.getInputManager().addMapping("derecha",
+        new KeyTrigger(KeyInput.KEY_D),
+        new KeyTrigger(KeyInput.KEY_RIGHT)
+    );
+
+    app.getInputManager().addMapping("espacio",
+        new KeyTrigger(KeyInput.KEY_SPACE)
+    );
+
+    app.getInputManager().addListener(this,
+        "arriba", "abajo", "izquierda", "derecha", "espacio");
+
+    System.out.println("✓ Inputs configurados");
+    System.out.println("⚠️ ESC solo pausará el juego, NO cerrará la aplicación");
+}
     
     private void terminarCancion() {
         juegoTerminado = true;
@@ -1295,10 +1260,13 @@ private void reintentarCancionActual() {
             blink2Disparado = true;
         }
 
-        if (t > evento + ventanaMiss(evento)) {
-            if (audioEmpezado && !proteccionInicioActiva) registrarMiss();
-            avanzarEventoEspacio();
-        }
+       if (t > evento + ventanaMiss(evento)) {
+    // Solo avanzar sin registrar miss en modo práctica
+    if (!modoPractica) {
+        registrarMiss();
+    }
+    avanzarEventoEspacio();
+}
     }
 
     private boolean evaluarHitEspacioSiDentroVentana() {
@@ -1472,91 +1440,89 @@ private void reintentarCancionActual() {
         return null;
     }
     
-    // ==================== SISTEMA DE PUNTUACIÓN ====================
-    
     private void evaluarHit(FlechaControl flecha, float delay) {
-        delay = Math.abs(delay);
+    delay = Math.abs(delay);
+    
+    int puntosBase;
+    String feedback;
+    ColorRGBA colorFeedback;
+    boolean perfectHit = false;
+    
+    if (delay <= VENTANA_PERFECTA) {
+        puntosBase = 100;
+        feedback = "¡PERFECTO!";
+        colorFeedback = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
+        perfectos++;
+        combo++;
+        perfectHit = true;
         
-        int puntosBase;
-        String feedback;
-        ColorRGBA colorFeedback;
-        boolean perfectHit = false;
-        
-        if (delay <= VENTANA_PERFECTA) {
-            puntosBase = 100;
-            feedback = "¡PERFECTO!";
-            colorFeedback = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
-            perfectos++;
-            combo++;
-            perfectHit = true;
-            
-            if (delay <= 0.02f) {
-                puntosBase = 150;
-                feedback = "¡¡IMPECABLE!!";
-                colorFeedback = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
-            }
-        } else if (delay <= VENTANA_BUENA) {
-            puntosBase = 50;
-            feedback = "BUENO";
-            colorFeedback = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
-            buenos++;
-            combo++;
-        } else if (delay <= VENTANA_MALA) {
-            puntosBase = 20;
-            feedback = "MALO";
-            colorFeedback = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
-            malos++;
-            combo = 0;
-        } else {
-            puntosBase = 10;
-            feedback = "TARDÍO";
-            colorFeedback = ColorRGBA.Red;
-            malos++;
-            combo = 0;
+        if (delay <= 0.02f) {
+            puntosBase = 150;
+            feedback = "¡¡IMPECABLE!!";
+            colorFeedback = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
         }
-        
-        float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
-        
-        if (combo > 5) {
-            multiplicador *= (1 + combo * 0.05f);
-        }
-        
-        if (perfectos >= 10 && buenos == 0 && malos == 0) {
-            multiplicador *= 1.5f;
-            if (perfectos % 10 == 0) {
-                feedback = "¡RACHA PERFECTA x" + perfectos + "!";
-            }
-        }
-        
-        int puntos = (int)(puntosBase * multiplicador);
-        score += puntos;
-        
-        if (combo > maxCombo) {
-            maxCombo = combo;
-        }
-        
-        if (!modoPractica && delay <= VENTANA_PERFECTA) {
-            vida = Math.min(100, vida + 2);
-            if (gameplayUI != null) {
-                gameplayUI.actualizarVida(vida);
-            }
-        }
-        
-        if (gameplayUI != null) {
-            gameplayUI.actualizarScore(score);
-            gameplayUI.mostrarFeedback(feedback, colorFeedback);
-            gameplayUI.actualizarCombo(combo);
-            
-            ColorRGBA colorFlecha = flecha.getDireccion().getColor();
-            gameplayUI.activarBrilloHit(colorFlecha);
-            
-            if (perfectHit && puntos > 100) {
-                gameplayUI.mostrarBonusPuntos(puntos);
-            }
-        }
-        
-        flecha.marcarComoGolpeada();
+    } else if (delay <= VENTANA_BUENA) {
+        puntosBase = 50;
+        feedback = "BUENO";
+        colorFeedback = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
+        buenos++;
+        combo++;
+    } else if (delay <= VENTANA_MALA) {
+        puntosBase = 20;  // ← Esta línea estaba mal formateada
+        feedback = "MALO";
+        colorFeedback = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
+        malos++;
+        combo = 0;
+    } else {
+        puntosBase = 10;
+        feedback = "TARDÍO";
+        colorFeedback = ColorRGBA.Red;
+        malos++;
+        combo = 0;
     }
+    
+    float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
+    
+    if (combo > 5) {
+        multiplicador *= (1 + combo * 0.05f);
+    }
+    
+    if (perfectos >= 10 && buenos == 0 && malos == 0) {
+        multiplicador *= 1.5f;
+        if (perfectos % 10 == 0) {
+            feedback = "¡RACHA PERFECTA x" + perfectos + "!";
+        }
+    }
+    
+    int puntos = (int)(puntosBase * multiplicador);
+    score += puntos;
+    
+    if (combo > maxCombo) {
+        maxCombo = combo;
+    }
+    
+    if (!modoPractica && delay <= VENTANA_PERFECTA) {
+        vida = Math.min(100, vida + 2);
+        if (gameplayUI != null) {
+            gameplayUI.actualizarVida(vida);
+        }
+    }
+    
+    if (gameplayUI != null) {
+        gameplayUI.actualizarScore(score);
+        gameplayUI.mostrarFeedback(feedback, colorFeedback);
+        gameplayUI.actualizarCombo(combo);
+        
+        ColorRGBA colorFlecha = flecha.getDireccion().getColor();
+        gameplayUI.activarBrilloHit(colorFlecha);
+        
+        if (perfectHit && puntos > 100) {
+            gameplayUI.mostrarBonusPuntos(puntos);
+        }
+    }
+    
+    flecha.marcarComoGolpeada();
+}
 
     private void evaluarHitDorada(FlechaDoradaControl flecha, float delay) {
         delay = Math.abs(delay);
@@ -1667,8 +1633,6 @@ private void reintentarCancionActual() {
         }
     }
     
-    // ==================== UTILIDADES ====================
-    
     private java.awt.Frame obtenerFramePadre() {
         for (java.awt.Window window : java.awt.Window.getWindows()) {
             if (window instanceof java.awt.Frame) {
@@ -1719,8 +1683,6 @@ private void reintentarCancionActual() {
             return "F - SIGUE INTENTANDO";
         }
     }
-    
-    // ==================== CLEANUP ====================
     
     @Override
     protected void cleanup(Application app) {
@@ -1780,7 +1742,9 @@ private void reintentarCancionActual() {
         gameNode.removeFromParent();
         System.out.println("⏸ GameplayAppState deshabilitado");
     }
+
     private void crearProtagonista() {
-    System.out.println("✓ Objeto central gestionado por GameplayUI");
+        System.out.println("✓ Objeto central gestionado por GameplayUI");
+    }
 }
-}
+
