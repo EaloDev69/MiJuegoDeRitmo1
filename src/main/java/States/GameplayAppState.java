@@ -1346,72 +1346,75 @@ private void reintentarCancionActual() {
     }
 
     private void evaluarHitEspacio(float delay) {
-        delay = Math.abs(delay);
-        int puntosBase;
-        String feedback;
-        ColorRGBA colorFeedback;
-        boolean perfectHit = false;
-        
-        float ref = (eventosEspacio != null && indiceEventoEspacio < eventosEspacio.size()) 
-            ? eventosEspacio.get(indiceEventoEspacio) : tiempoTranscurrido;
-        
-        if (delay <= ventanaPerfecta(ref)) {
-            puntosBase = 100;
-            feedback = "¡PERFECTO!";
-            colorFeedback = new ColorRGBA(0.8f, 0.8f, 1f, 1);
-            perfectos++;
-            combo++;
-            perfectHit = true;
-            if (delay <= 0.02f) {
-                puntosBase = 150;
-                feedback = "¡¡IMPECABLE!!";
-            }
-        } else if (delay <= ventanaBuena(ref)) {
-            puntosBase = 50;
-            feedback = "BUENO";
-            colorFeedback = ColorRGBA.Yellow;
-            buenos++;
-            combo++;
-        } else if (delay <= ventanaMala(ref)) {
-            puntosBase = 20;
-            feedback = "MALO";
-            colorFeedback = ColorRGBA.Orange;
-            malos++;
-            combo = 0;
-        } else {
-            puntosBase = 10;
-            feedback = "TARDÍO";
-            colorFeedback = ColorRGBA.Red;
-            malos++;
-            combo = 0;
-        }
-        
-        float multiplicador = 1.0f;
-        if (combo > 5) {
-            multiplicador *= (1 + combo * 0.05f);
-        }
-        int puntos = (int)(puntosBase * multiplicador);
-        score += puntos;
-        if (combo > maxCombo) maxCombo = combo;
-        
-        if (!modoPractica && delay <= ventanaPerfecta(ref)) {
-            vida = Math.min(100, vida + 2);
-            if (gameplayUI != null) gameplayUI.actualizarVida(vida);
-        }
-        
-        if (gameplayUI != null) {
-            gameplayUI.actualizarScore(score);
-            gameplayUI.mostrarFeedback(feedback, colorFeedback);
-            gameplayUI.actualizarCombo(combo);
-            gameplayUI.activarBrilloHit(ColorRGBA.White);
-            if (perfectHit && puntos > 100) {
-                gameplayUI.mostrarBonusPuntos(puntos);
-            }
-            if (gameplayUI != null) {
+    delay = Math.abs(delay);
+    
+    // ⭐ RESTAURAR ASTRONAUTA A NORMAL CUANDO SE ACIERTA
+    if (gameplayUI != null) {
         gameplayUI.restaurarAstronautaNormal();
+    }
+    
+    int puntosBase;
+    String feedback;
+    ColorRGBA colorFeedback;
+    boolean perfectHit = false;
+    
+    float ref = (eventosEspacio != null && indiceEventoEspacio < eventosEspacio.size()) 
+        ? eventosEspacio.get(indiceEventoEspacio) : tiempoTranscurrido;
+    
+    if (delay <= ventanaPerfecta(ref)) {
+        puntosBase = 100;
+        feedback = "¡PERFECTO!";
+        colorFeedback = new ColorRGBA(0.8f, 0.8f, 1f, 1);
+        perfectos++;
+        combo++;
+        perfectHit = true;
+        if (delay <= 0.02f) {
+            puntosBase = 150;
+            feedback = "¡¡IMPECABLE!!";
         }
+    } else if (delay <= ventanaBuena(ref)) {
+        puntosBase = 50;
+        feedback = "BUENO";
+        colorFeedback = ColorRGBA.Yellow;
+        buenos++;
+        combo++;
+    } else if (delay <= ventanaMala(ref)) {
+        puntosBase = 20;
+        feedback = "MALO";
+        colorFeedback = ColorRGBA.Orange;
+        malos++;
+        combo = 0;
+    } else {
+        puntosBase = 10;
+        feedback = "TARDÍO";
+        colorFeedback = ColorRGBA.Red;
+        malos++;
+        combo = 0;
+    }
+    
+    float multiplicador = 1.0f;
+    if (combo > 5) {
+        multiplicador *= (1 + combo * 0.05f);
+    }
+    int puntos = (int)(puntosBase * multiplicador);
+    score += puntos;
+    if (combo > maxCombo) maxCombo = combo;
+    
+    if (!modoPractica && delay <= ventanaPerfecta(ref)) {
+        vida = Math.min(100, vida + 2);
+        if (gameplayUI != null) gameplayUI.actualizarVida(vida);
+    }
+    
+    if (gameplayUI != null) {
+        gameplayUI.actualizarScore(score);
+        gameplayUI.mostrarFeedback(feedback, colorFeedback);
+        gameplayUI.actualizarCombo(combo);
+        gameplayUI.activarBrilloHit(ColorRGBA.White);
+        if (perfectHit && puntos > 100) {
+            gameplayUI.mostrarBonusPuntos(puntos);
         }
     }
+}
     
     private void procesarInputsContinuos() {
         for (Map.Entry<Direccion, Boolean> entry : teclasPresionadas.entrySet()) {
@@ -1503,95 +1506,85 @@ private void reintentarCancionActual() {
     
     // ==================== SISTEMA DE PUNTUACIÓN ====================
     
-    private void evaluarHit(FlechaControl flecha, float delay) {
-        delay = Math.abs(delay);
-        
-        int puntosBase;
-        String feedback;
-        ColorRGBA colorFeedback;
-        boolean perfectHit = false;
-        
-        if (delay <= VENTANA_PERFECTA) {
-            puntosBase = 100;
-            feedback = "¡PERFECTO!";
-            colorFeedback = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
-            perfectos++;
-            combo++;
-            perfectHit = true;
-            
-            if (delay <= 0.02f) {
-                puntosBase = 150;
-                feedback = "¡¡IMPECABLE!!";
-                colorFeedback = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
-            }
-        } else if (delay <= VENTANA_BUENA) {
-            puntosBase = 50;
-            feedback = "BUENO";
-            colorFeedback = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
-            buenos++;
-            combo++;
-        } else if (delay <= VENTANA_MALA) {
-            puntosBase = 20;
-            feedback = "MALO";
-            colorFeedback = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
-            malos++;
-            combo = 0;
-        } else {
-            puntosBase = 10;
-            feedback = "TARDÍO";
-            colorFeedback = ColorRGBA.Red;
-            malos++;
-            combo = 0;
-        }
-        
-        float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
-        
-        if (combo > 5) {
-            multiplicador *= (1 + combo * 0.05f);
-        }
-        
-        if (perfectos >= 10 && buenos == 0 && malos == 0) {
-            multiplicador *= 1.5f;
-            if (perfectos % 10 == 0) {
-                feedback = "¡RACHA PERFECTA x" + perfectos + "!";
-            }
-        }
-        
-        int puntos = (int)(puntosBase * multiplicador);
-        score += puntos;
-        
-        if (combo > maxCombo) {
-            maxCombo = combo;
-        }
-        
-        if (!modoPractica && delay <= VENTANA_PERFECTA) {
-            vida = Math.min(100, vida + 2);
-            if (gameplayUI != null) {
-                gameplayUI.actualizarVida(vida);
-            }
-        }
-        
-        if (gameplayUI != null) {
-            gameplayUI.actualizarScore(score);
-            gameplayUI.mostrarFeedback(feedback, colorFeedback);
-            gameplayUI.actualizarCombo(combo);
-            
-            ColorRGBA colorFlecha = flecha.getDireccion().getColor();
-            gameplayUI.activarBrilloHit(colorFlecha);
-            
-            if (perfectHit && puntos > 100) {
-                gameplayUI.mostrarBonusPuntos(puntos);
-            }
-        }
-        
-        flecha.marcarComoGolpeada();
-        if (gameplayUI != null) {
+   private void evaluarHit(FlechaControl flecha, float delay) {
+    delay = Math.abs(delay);
+    
+    // ⭐ RESTAURAR ASTRONAUTA A NORMAL CUANDO SE ACIERTA
+    if (gameplayUI != null) {
         gameplayUI.restaurarAstronautaNormal();
+    }
+    
+    int puntosBase;
+    String feedback;
+    ColorRGBA colorFeedback;
+    boolean perfectHit = false;
+    
+    if (delay <= VENTANA_PERFECTA) {
+        puntosBase = 100;
+        feedback = "¡PERFECTO!";
+        colorFeedback = new ColorRGBA(247f/255f, 181f/255f, 6f/255f, 1f);
+        perfectos++;
+        combo++;
+        perfectHit = true;
         
-        // ... resto del código existente de evaluarHit
+        if (delay <= 0.02f) {
+            puntosBase = 150;
+            feedback = "¡¡IMPECABLE!!";
+            colorFeedback = new ColorRGBA(17f/255f, 216f/255f, 197f/255f, 1f);
+        }
+    } else if (delay <= VENTANA_BUENA) {
+        puntosBase = 50;
+        feedback = "BUENO";
+        colorFeedback = new ColorRGBA(242f/255f, 118f/255f, 1f/255f, 1f);
+        buenos++;
+        combo++;
+    } else if (delay <= VENTANA_MALA) {
+        puntosBase = 20;
+        feedback = "MALO";
+        colorFeedback = new ColorRGBA(255f/255f, 0f/255f, 132f/255f, 1f);
+        malos++;
+        combo = 0;
+    } else {
+        puntosBase = 10;
+        feedback = "TARDÍO";
+        colorFeedback = ColorRGBA.Red;
+        malos++;
+        combo = 0;
+    }
+    
+    float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
+    
+    if (combo > 5) {
+        multiplicador *= (1 + combo * 0.05f);
+    }
+    
+    if (perfectos >= 10 && buenos == 0 && malos == 0) {
+        multiplicador *= 1.5f;
+        if (perfectos % 10 == 0) {
+            feedback = "¡RACHA PERFECTA x" + perfectos + "!";
+        }
+    }
+    
+    int puntos = (int)(puntosBase * multiplicador);
+    score += puntos;
+    
+    if (combo > maxCombo) {
+        maxCombo = combo;
+    }
+    
+    if (!modoPractica && delay <= VENTANA_PERFECTA) {
+        vida = Math.min(100, vida + 2);
+        if (gameplayUI != null) {
+            gameplayUI.actualizarVida(vida);
+        }
+    }
+    
+    if (gameplayUI != null) {
         gameplayUI.actualizarScore(score);
         gameplayUI.mostrarFeedback(feedback, colorFeedback);
         gameplayUI.actualizarCombo(combo);
+        
+        ColorRGBA colorFlecha = flecha.getDireccion().getColor();
         gameplayUI.activarBrilloHit(colorFlecha);
         
         if (perfectHit && puntos > 100) {
@@ -1600,89 +1593,94 @@ private void reintentarCancionActual() {
     }
     
     flecha.marcarComoGolpeada();
-    }
+}
 
-    private void evaluarHitDorada(FlechaDoradaControl flecha, float delay) {
-        delay = Math.abs(delay);
-        int puntosBase;
-        String feedback;
-        ColorRGBA colorFeedback;
-        boolean perfectHit = false;
-        
-        float vp = ventanaPerfecta(flecha.getBeatTime());
-        float vb = ventanaBuena(flecha.getBeatTime());
-        float vm = ventanaMala(flecha.getBeatTime());
-        
-        if (delay <= vp) {
-            puntosBase = 100;
-            feedback = "¡PERFECTO!";
-            colorFeedback = new ColorRGBA(0, 1, 0.5f, 1);
-            perfectos++;
-            combo++;
-            perfectHit = true;
-            if (delay <= 0.02f) {
-                puntosBase = 150;
-                feedback = "¡¡IMPECABLE!!";
-            }
-        } else if (delay <= vb) {
-            puntosBase = 50;
-            feedback = "BUENO";
-            colorFeedback = ColorRGBA.Yellow;
-            buenos++;
-            combo++;
-        } else if (delay <= vm) {
-            puntosBase = 20;
-            feedback = "MALO";
-            colorFeedback = ColorRGBA.Orange;
-            malos++;
-            combo = 0;
-        } else {
-            puntosBase = 10;
-            feedback = "TARDÍO";
-            colorFeedback = ColorRGBA.Red;
-            malos++;
-            combo = 0;
-        }
-        
-        float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
-        if (combo > 5) {
-            multiplicador *= (1 + combo * 0.05f);
-        }
-        if (perfectos >= 10 && buenos == 0 && malos == 0) {
-            multiplicador *= 1.5f;
-            if (perfectos % 10 == 0) {
-                feedback = "¡RACHA PERFECTA x" + perfectos + "!";
-            }
-        }
-        
-        int puntos = (int)(puntosBase * multiplicador);
-        score += puntos;
-        if (combo > maxCombo) {
-            maxCombo = combo;
-        }
-        
-        if (!modoPractica && delay <= vp) {
-            vida = Math.min(100, vida + 2);
-            if (gameplayUI != null) {
-                gameplayUI.actualizarVida(vida);
-            }
-        }
-        
-        if (gameplayUI != null) {
-            gameplayUI.actualizarScore(score);
-            gameplayUI.mostrarFeedback(feedback, colorFeedback);
-            gameplayUI.actualizarCombo(combo);
-            ColorRGBA colorFlecha = flecha.getDireccion().getColor();
-            gameplayUI.activarBrilloHit(colorFlecha);
-            if (perfectHit && puntos > 100) {
-                gameplayUI.mostrarBonusPuntos(puntos);
-            }
-        }
-         if (gameplayUI != null) {
+   private void evaluarHitDorada(FlechaDoradaControl flecha, float delay) {
+    delay = Math.abs(delay);
+    
+    // ⭐ RESTAURAR ASTRONAUTA A NORMAL CUANDO SE ACIERTA
+    if (gameplayUI != null) {
         gameplayUI.restaurarAstronautaNormal();
-         }
-        flecha.marcarComoGolpeada();
     }
+    
+    int puntosBase;
+    String feedback;
+    ColorRGBA colorFeedback;
+    boolean perfectHit = false;
+    
+    float vp = ventanaPerfecta(flecha.getBeatTime());
+    float vb = ventanaBuena(flecha.getBeatTime());
+    float vm = ventanaMala(flecha.getBeatTime());
+    
+    if (delay <= vp) {
+        puntosBase = 100;
+        feedback = "¡PERFECTO!";
+        colorFeedback = new ColorRGBA(0, 1, 0.5f, 1);
+        perfectos++;
+        combo++;
+        perfectHit = true;
+        if (delay <= 0.02f) {
+            puntosBase = 150;
+            feedback = "¡¡IMPECABLE!!";
+        }
+    } else if (delay <= vb) {
+        puntosBase = 50;
+        feedback = "BUENO";
+        colorFeedback = ColorRGBA.Yellow;
+        buenos++;
+        combo++;
+    } else if (delay <= vm) {
+        puntosBase = 20;
+        feedback = "MALO";
+        colorFeedback = ColorRGBA.Orange;
+        malos++;
+        combo = 0;
+    } else {
+        puntosBase = 10;
+        feedback = "TARDÍO";
+        colorFeedback = ColorRGBA.Red;
+        malos++;
+        combo = 0;
+    }
+    
+    float multiplicador = flecha.getTipo().getMultiplicadorPuntos();
+    if (combo > 5) {
+        multiplicador *= (1 + combo * 0.05f);
+    }
+    if (perfectos >= 10 && buenos == 0 && malos == 0) {
+        multiplicador *= 1.5f;
+        if (perfectos % 10 == 0) {
+            feedback = "¡RACHA PERFECTA x" + perfectos + "!";
+        }
+    }
+    
+    int puntos = (int)(puntosBase * multiplicador);
+    score += puntos;
+    if (combo > maxCombo) {
+        maxCombo = combo;
+    }
+    
+    if (!modoPractica && delay <= vp) {
+        vida = Math.min(100, vida + 2);
+        if (gameplayUI != null) {
+            gameplayUI.actualizarVida(vida);
+        }
+    }
+    
+    if (gameplayUI != null) {
+        gameplayUI.actualizarScore(score);
+        gameplayUI.mostrarFeedback(feedback, colorFeedback);
+        gameplayUI.actualizarCombo(combo);
+        ColorRGBA colorFlecha = flecha.getDireccion().getColor();
+        gameplayUI.activarBrilloHit(colorFlecha);
+        if (perfectHit && puntos > 100) {
+            gameplayUI.mostrarBonusPuntos(puntos);
+        }
+    }
+    
+    flecha.marcarComoGolpeada();
+}
+
     
     private void registrarMiss() {
     misses++;
@@ -1699,7 +1697,7 @@ private void reintentarCancionActual() {
         if (gameplayUI != null) {
             gameplayUI.actualizarVida(vida);
             
-            // ⭐ NUEVO: Activar animación de error
+            // ⭐ ACTIVAR ANIMACIÓN DE ERROR
             gameplayUI.activarAnimacionError();
             
             if (vida <= 30 && vida > 0) {
@@ -1707,7 +1705,7 @@ private void reintentarCancionActual() {
             }
         }
     } else {
-        // ⭐ NUEVO: En modo práctica también mostrar error visual
+        // ⭐ En modo práctica también mostrar error visual
         if (gameplayUI != null) {
             gameplayUI.activarAnimacionError();
         }
