@@ -21,8 +21,8 @@ public class FlechasGenerator {
     private final RhythmPatternEngine patternEngine;
     private final SongClassifier songClassifier;
     private final BeatDetector beatDetector;
-    private float probabilidadRapida = 0.20f;
-    private float probabilidadDorada = 0.15f;
+    private float probabilidadRapida = 0.22f;
+    private float probabilidadDorada = 0.06f;
     private boolean generarPatronesRitmicos = true;
     private int flechasConsecutivasMismaDireccion = 0;
     private Direccion ultimaDireccion = null;
@@ -61,7 +61,7 @@ public void setDifficulty(Difficulty difficulty) {
             setProbabilidades(0.10f, 0.05f);
             break;
         case NORMAL:
-            setProbabilidades(0.20f, 0.15f);
+            setProbabilidades(0.22f, 0.06f);
             break;
         case DIFICIL:
             setProbabilidades(0.35f, 0.25f);
@@ -184,7 +184,7 @@ public Difficulty getDifficulty() {
     private TipoFlecha determinarTipoFlecha(float beatTime, Set<Float> beatsRapidos, Set<Float> beatsDorados) {
         // Si el beat está en la lista de lentos/dorados, es candidato a dorada
         if (beatsDorados.contains(beatTime)) {
-            if (random.nextFloat() < 0.7f) { // 70% de probabilidad si está en la lista
+            if (random.nextFloat() < 0.30f) {
                 return TipoFlecha.DORADA;
             }
         }
@@ -468,10 +468,10 @@ public Difficulty getDifficulty() {
 
     private int seleccionarMultiplicador(ResultadoAnalisis.Intensidad intensidad) {
         switch (intensidad) {
-            case BAJA: return 4;
-            case MEDIA: return 3;
-            case ALTA: return 2;
-            case EXTREMA: return 2;
+            case BAJA: return 6;
+            case MEDIA: return 5;
+            case ALTA: return 4;
+            case EXTREMA: return 3;
             default: return 3;
         }
     }
@@ -491,23 +491,32 @@ public Difficulty getDifficulty() {
             float apsMax = 4.0f;
             if (existeFlechaCerca(base, e.getBeatTime(), umbral)) continue;
             if (!permitirPorAPS(base, e.getBeatTime(), apsMax)) continue;
-            base.add(e);
+            // Reducir densidad de doradas y llenar huecos con normales
+            if (e.getTipo() == TipoFlecha.DORADA) {
+                if (random.nextFloat() < 0.35f) {
+                    base.add(e);
+                } else {
+                    base.add(new FlechaData(e.getBeatTime(), e.getDireccion(), TipoFlecha.NORMAL));
+                }
+            } else {
+                base.add(e);
+            }
         }
     }
 
     private void ajustarProbabilidadesPorBpm(float bpm) {
         if (bpm > 140f) {
-            probabilidadRapida = Math.max(0.1f, probabilidadRapida * 0.6f);
-            probabilidadDorada = Math.max(0.1f, probabilidadDorada * 0.8f);
-        } else if (bpm > 120f) {
             probabilidadRapida = Math.max(0.12f, probabilidadRapida * 0.8f);
+            probabilidadDorada = Math.max(0.03f, probabilidadDorada * 0.7f);
+        } else if (bpm > 120f) {
+            probabilidadRapida = Math.max(0.14f, probabilidadRapida * 0.9f);
         }
         if (dificultad == Difficulty.FACIL) {
-            probabilidadRapida = Math.max(0.08f, probabilidadRapida * 0.8f);
-            probabilidadDorada = Math.max(0.09f, probabilidadDorada * 0.85f);
+            probabilidadRapida = Math.max(0.10f, probabilidadRapida * 0.85f);
+            probabilidadDorada = Math.max(0.02f, probabilidadDorada * 0.8f);
         } else if (dificultad == Difficulty.DIFICIL) {
-            probabilidadRapida = Math.min(0.35f, probabilidadRapida * 1.15f);
-            probabilidadDorada = Math.min(0.22f, probabilidadDorada * 1.10f);
+            probabilidadRapida = Math.min(0.35f, probabilidadRapida * 1.10f);
+            probabilidadDorada = Math.min(0.12f, probabilidadDorada * 1.05f);
         }
     }
 

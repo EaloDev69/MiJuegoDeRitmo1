@@ -51,6 +51,27 @@ public class FlechaControl extends AbstractControl {
     // ⭐ NUEVO: Vector de movimiento calculado una sola vez
     private Vector3f direccionMovimiento;
     private Vector3f direccionMovimientoInvertida;
+
+    // ⭐ NUEVO: Atributos para movimiento parabólico (curva de Bézier)
+    private Vector3f controlPoint1;
+    private Vector3f controlPoint2;
+    private float tiempoTotalMovimiento;
+    private float tiempoTranscurridoMovimiento = 0f;
+    private boolean enMovimientoParabolico = false;
+    private Vector3f velocidadLinealFinal;
+    private float anguloOriginal;
+    private boolean transicionActivada = false;
+    private Vector3f orbitCenter = new Vector3f(0,0,0);
+    private boolean faseRecta = true;
+    private boolean faseGiro = false;
+    private boolean faseFinalRecta = false;
+    private float giroAnguloAcumulado = 0f;
+    private float giroVelocidadAngular = 0f;
+    private float giroRadio = 40f;
+    private Direccion direccionPerpendicular;
+    private Vector3f perpendicularTarget;
+    private Vector3f direccionMovimientoFinal;
+    private Vector3f offsetCentro = new Vector3f(0, 0, 0);
     
     // ==================== EFECTOS VISUALES ====================
     private boolean brilloActivo = false;
@@ -78,11 +99,19 @@ public class FlechaControl extends AbstractControl {
         // ⭐ NUEVO: Calcular dirección de movimiento una sola vez
         this.direccionMovimiento = target.subtract(posicionInicial).normalize();
         
+        // Calcular tiempo total de movimiento
+        this.tiempoTotalMovimiento = posicionInicial.distance(target) / velocidad;
+
+        // Calcular ángulo original de la flecha
+        this.anguloOriginal = FastMath.atan2(direccionMovimiento.y, direccionMovimiento.x);
+
+        this.velocidadLinealFinal = direccionMovimiento.mult(velocidad);
+        
         // Para flechas doradas: calcular dirección invertida
         if (tipo == TipoFlecha.DORADA) {
-            this.distanciaInversion = posicionInicial.distance(target) / 2f;
-            // La dirección invertida es exactamente la opuesta
+            this.distanciaInversion = posicionInicial.distance(target) * 0.4f;
             this.direccionMovimientoInvertida = direccionMovimiento.negate();
+            this.direccionPerpendicular = calcularPerpendicular(direccion);
         }
         
         this.colorBase = material.getParamValue("Color");
@@ -116,6 +145,15 @@ public class FlechaControl extends AbstractControl {
     protected void controlUpdate(float tpf) {
         if (spatial == null || fueErrada) {
             return;
+        }
+        if (offsetCentro.equals(Vector3f.ZERO)) {
+            if (spatial instanceof com.jme3.scene.Geometry) {
+                com.jme3.scene.Geometry g = (com.jme3.scene.Geometry) spatial;
+                com.jme3.bounding.BoundingBox bb = (com.jme3.bounding.BoundingBox) g.getMesh().getBound();
+                float w = bb.getXExtent() * 2f;
+                float h = bb.getYExtent() * 2f;
+                offsetCentro.set(w / 2f, h / 2f, 0f);
+            }
         }
         
         actualizarEfectosVisuales(tpf);
@@ -215,50 +253,62 @@ public class FlechaControl extends AbstractControl {
      */
     private void moverFlecha(float tpf) {
         Vector3f posicionActual = spatial.getLocalTranslation();
-        
-        // ⭐ NUEVO: Usar dirección pre-calculada para movimiento recto
-        Vector3f direccion;
-        if (tipo == TipoFlecha.DORADA) {
-            if (enOrbita) {
-                tiempoOrbita += tpf;
-                anguloOrbita += velocidadAngular * tpf;
-                float x = target.x + FastMath.cos(anguloOrbita) * radioOrbita;
-                float y = target.y + FastMath.sin(anguloOrbita) * radioOrbita;
-                spatial.setLocalTranslation(x, y, spatial.getLocalTranslation().z);
-                if (tiempoOrbita >= duracionOrbitaCfg) {
-                    enSalida = true;
-                    enOrbita = false;
-                }
-                return;
-            }
-            if (enSalida) {
-                Vector3f dirSalida = spatial.getLocalTranslation().subtract(target).normalizeLocal();
-                float d = velocidad * tpf;
-                spatial.setLocalTranslation(spatial.getLocalTranslation().add(dirSalida.mult(d)));
-                distanciaRecorrida += d;
-                return;
-            }
-        }
-        direccion = (tipo == TipoFlecha.DORADA && invertido) ? direccionMovimientoInvertida : direccionMovimiento;
-        float distanciaMovimiento = velocidad * tpf;
-        Vector3f toTarget = target.subtract(posicionActual);
-        float distTarget = toTarget.length();
-        if (tipo == TipoFlecha.DORADA && distTarget <= distanciaMovimiento) {
-            spatial.setLocalTranslation(target);
-            enOrbita = true;
-            invertido = false;
-            distanciaRecorrida = posicionInicial.distance(target);
-            Vector3f v = spatial.getLocalTranslation().subtract(target);
-            radioOrbita = Math.max(28f, Math.min(60f, v.length()));
-            anguloOrbita = FastMath.atan2(v.y, v.x);
-            tiempoOrbita = 0f;
-        } else {
-            distanciaRecorrida += distanciaMovimiento;
-            Vector3f nuevaPosicion = posicionActual.add(direccion.mult(distanciaMovimiento));
+
+        if (tipo != TipoFlecha.DORADA) {
+            Vector3f nuevaPosicion = posicionActual.add(direccionMovimiento.mult(velocidad * tpf));
             spatial.setLocalTranslation(nuevaPosicion);
-            if (tipo == TipoFlecha.DORADA && !invertido && distanciaRecorrida >= distanciaInversion) {
-                ejecutarInversion();
+            distanciaRecorrida = posicionInicial.distance(nuevaPosicion);
+            float anguloActual = FastMath.atan2(direccionMovimiento.y, direccionMovimiento.x);
+            spatial.setLocalRotation(new com.jme3.math.Quaternion().fromAngleAxis(anguloActual, Vector3f.UNIT_Z));
+            return;
+        }
+
+        if (faseRecta) {
+            Vector3f nuevaPosicion = posicionActual.add(direccionMovimiento.mult(velocidad * tpf));
+            spatial.setLocalTranslation(nuevaPosicion);
+            distanciaRecorrida = posicionInicial.distance(nuevaPosicion);
+            float anguloActual = FastMath.atan2(direccionMovimiento.y, direccionMovimiento.x);
+            spatial.setLocalRotation(new com.jme3.math.Quaternion().fromAngleAxis(anguloActual, Vector3f.UNIT_Z));
+            if (distanciaRecorrida >= distanciaInversion) {
+                faseRecta = false;
+                faseGiro = true;
+                giroRadio = 80f;
+                giroVelocidadAngular = 2.5f;
+                giroAnguloAcumulado = 0f;
+                float ang0 = FastMath.atan2(spatial.getLocalTranslation().y - orbitCenter.y, spatial.getLocalTranslation().x - orbitCenter.x);
+                anguloOrbita = ang0;
+                if (perpendicularTarget == null && direccionPerpendicular != null) {
+                    perpendicularTarget = direccionPerpendicular.getPosicionTarget(viewportWidth, viewportHeight);
+                }
             }
+            return;
+        }
+
+        if (faseGiro) {
+            giroAnguloAcumulado += giroVelocidadAngular * tpf;
+            float ang = anguloOrbita + giroAnguloAcumulado;
+            float x = orbitCenter.x + FastMath.cos(ang) * giroRadio;
+            float y = orbitCenter.y + FastMath.sin(ang) * giroRadio;
+            spatial.setLocalTranslation(x, y, posicionActual.z);
+            Vector3f dirTangente = new Vector3f(-FastMath.sin(ang), FastMath.cos(ang), 0).normalizeLocal();
+            float anguloActual = FastMath.atan2(dirTangente.y, dirTangente.x);
+            spatial.setLocalRotation(new com.jme3.math.Quaternion().fromAngleAxis(anguloActual, Vector3f.UNIT_Z));
+            if (giroAnguloAcumulado >= FastMath.HALF_PI) {
+                faseGiro = false;
+                faseFinalRecta = true;
+                Vector3f p = spatial.getLocalTranslation();
+                Vector3f tgt = perpendicularTarget != null ? perpendicularTarget : target;
+                direccionMovimientoFinal = tgt.subtract(p).normalize();
+            }
+            return;
+        }
+
+        if (faseFinalRecta) {
+            Vector3f nuevaPosicion = spatial.getLocalTranslation().add(direccionMovimientoFinal.mult(velocidad * tpf));
+            spatial.setLocalTranslation(nuevaPosicion);
+            float anguloActual = FastMath.atan2(direccionMovimientoFinal.y, direccionMovimientoFinal.x);
+            spatial.setLocalRotation(new com.jme3.math.Quaternion().fromAngleAxis(anguloActual, Vector3f.UNIT_Z));
+            return;
         }
     }
     
@@ -338,6 +388,20 @@ public class FlechaControl extends AbstractControl {
         this.viewportHeight = height;
     }
 
+    public void configurarOrbitCenter(Vector3f center) {
+        if (center != null) this.orbitCenter = center.clone();
+    }
+
+    private Direccion calcularPerpendicular(Direccion d) {
+        switch (d) {
+            case ARRIBA: return Direccion.IZQUIERDA;
+            case ABAJO: return Direccion.DERECHA;
+            case IZQUIERDA: return Direccion.ABAJO;
+            case DERECHA: return Direccion.ARRIBA;
+            default: return d;
+        }
+    }
+
     public void configurarOrbita(float radio, float velAngular, float duracion) {
         this.radioOrbita = radio;
         this.velocidadAngular = velAngular;
@@ -390,7 +454,7 @@ public class FlechaControl extends AbstractControl {
     
     public float getDistanciaAlTarget() {
         if (spatial == null) return Float.MAX_VALUE;
-        return spatial.getLocalTranslation().distance(target);
+        return spatial.getLocalTranslation().add(offsetCentro).distance(target);
     }
     
     // ==================== GETTERS ====================
@@ -405,6 +469,12 @@ public class FlechaControl extends AbstractControl {
     public Vector3f getPosicionInicial() { return posicionInicial.clone(); }
     public float getVelocidad() { return velocidad; }
     public float getDistanciaRecorrida() { return distanciaRecorrida; }
+    public Direccion getDireccionActual() {
+        if (tipo == TipoFlecha.DORADA && (faseGiro || faseFinalRecta) && direccionPerpendicular != null) {
+            return direccionPerpendicular;
+        }
+        return direccion;
+    }
     
     public float getPorcentajeRecorrido() {
         float distanciaTotal = posicionInicial.distance(target);
