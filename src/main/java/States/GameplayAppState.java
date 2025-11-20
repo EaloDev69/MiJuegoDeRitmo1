@@ -1407,6 +1407,9 @@ private void reintentarCancionActual() {
             if (perfectHit && puntos > 100) {
                 gameplayUI.mostrarBonusPuntos(puntos);
             }
+            if (gameplayUI != null) {
+        gameplayUI.restaurarAstronautaNormal();
+        }
         }
     }
     
@@ -1582,6 +1585,21 @@ private void reintentarCancionActual() {
         }
         
         flecha.marcarComoGolpeada();
+        if (gameplayUI != null) {
+        gameplayUI.restaurarAstronautaNormal();
+        
+        // ... resto del código existente de evaluarHit
+        gameplayUI.actualizarScore(score);
+        gameplayUI.mostrarFeedback(feedback, colorFeedback);
+        gameplayUI.actualizarCombo(combo);
+        gameplayUI.activarBrilloHit(colorFlecha);
+        
+        if (perfectHit && puntos > 100) {
+            gameplayUI.mostrarBonusPuntos(puntos);
+        }
+    }
+    
+    flecha.marcarComoGolpeada();
     }
 
     private void evaluarHitDorada(FlechaDoradaControl flecha, float delay) {
@@ -1660,38 +1678,46 @@ private void reintentarCancionActual() {
                 gameplayUI.mostrarBonusPuntos(puntos);
             }
         }
-        
+         if (gameplayUI != null) {
+        gameplayUI.restaurarAstronautaNormal();
+         }
         flecha.marcarComoGolpeada();
     }
     
     private void registrarMiss() {
-        misses++;
-        combo = 0;
-        
-        int penalizacion = 10;
-        if (misses > 5) {
-            penalizacion = 15;
-        }
-        if (misses > 10) {
-            penalizacion = 20;
-        }
-        
-        if (!modoPractica) {
-            vida -= penalizacion;
-            vida = Math.max(0, vida);
-            if (gameplayUI != null) {
-                gameplayUI.actualizarVida(vida);
-                if (vida <= 30 && vida > 0) {
-                    gameplayUI.mostrarAdvertenciaVidaBaja();
-                }
-            }
-        }
+    misses++;
+    combo = 0;
+    
+    int penalizacion = 10;
+    if (misses > 5) penalizacion = 15;
+    if (misses > 10) penalizacion = 20;
+    
+    if (!modoPractica) {
+        vida -= penalizacion;
+        vida = Math.max(0, vida);
         
         if (gameplayUI != null) {
-            gameplayUI.mostrarFeedback("MISS!", ColorRGBA.Red);
-            gameplayUI.actualizarCombo(0);
+            gameplayUI.actualizarVida(vida);
+            
+            // ⭐ NUEVO: Activar animación de error
+            gameplayUI.activarAnimacionError();
+            
+            if (vida <= 30 && vida > 0) {
+                gameplayUI.mostrarAdvertenciaVidaBaja();
+            }
+        }
+    } else {
+        // ⭐ NUEVO: En modo práctica también mostrar error visual
+        if (gameplayUI != null) {
+            gameplayUI.activarAnimacionError();
         }
     }
+    
+    if (gameplayUI != null) {
+        gameplayUI.mostrarFeedback("MISS!", ColorRGBA.Red);
+        gameplayUI.actualizarCombo(0);
+    }
+}
     
     // ==================== UTILIDADES ====================
     

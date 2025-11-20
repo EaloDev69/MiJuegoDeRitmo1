@@ -136,24 +136,78 @@ public class AstronautaGenerator {
     private ColorRGBA calcularPixelDetallado(int x, int y) {
     float nx = (float)x / TEXTURE_SIZE;
     float ny = (float)y / TEXTURE_SIZE;
-    
     float cx = nx - 0.5f;
     float cy = ny - 0.5f;
+
+    // ⭐ PRIMERO: Calcular el color base del astronauta
+    ColorRGBA colorBase = calcularColorSinBorde(cx, cy);
     
-    // ⭐ PRIMERO: Dibujar el casco completo (tiene prioridad)
-    ColorRGBA casco = dibujarCascoCompleto(cx, cy);
-    if (casco.a > 0) return casco;
-    
-    // CUERPO: Debajo del casco
-    if (cy > -0.30f && cy <= 0.05f) {
-        return dibujarCuerpoDetallado(cx, cy);
+    // ⭐ SEGUNDO: Si es transparente, retornar
+    if (colorBase.a == 0) {
+        return colorBase;
     }
     
+    // ⭐ TERCERO: Detectar si es borde (LINE ART)
+    if (esBordePixelArt(x, y)) {
+        return new ColorRGBA(0.05f, 0.05f, 0.08f, 1f); // Negro azulado
+    }
+    
+    return colorBase;
+}
+    private boolean esBordePixelArt(int x, int y) {
+    // Grosor del borde (en píxeles)
+    int grosorBorde = 2; // Ajusta para líneas más gruesas/delgadas
+    
+    // Verificar píxeles vecinos en un radio
+    for (int dy = -grosorBorde; dy <= grosorBorde; dy++) {
+        for (int dx = -grosorBorde; dx <= grosorBorde; dx++) {
+            if (dx == 0 && dy == 0) continue; // Saltar el píxel actual
+            
+            int nx = x + dx;
+            int ny = y + dy;
+            
+            // Verificar límites
+            if (nx < 0 || nx >= TEXTURE_SIZE || ny < 0 || ny >= TEXTURE_SIZE) {
+                continue;
+            }
+            
+            // Calcular color del vecino
+            float vnx = (float)nx / TEXTURE_SIZE;
+            float vny = (float)ny / TEXTURE_SIZE;
+            float vcx = vnx - 0.5f;
+            float vcy = vny - 0.5f;
+            
+            ColorRGBA colorVecino = calcularColorSinBorde(vcx, vcy);
+            
+            // Si hay un vecino transparente, este es un borde
+            if (colorVecino.a == 0) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * ⭐ NUEVO: Calcula el color del astronauta SIN el borde
+ * (código original de calcularPixelDetallado)
+ */
+private ColorRGBA calcularColorSinBorde(float cx, float cy) {
+    // ⭐ CASCO (tiene prioridad)
+    ColorRGBA casco = dibujarCascoCompleto(cx, cy);
+    if (casco.a > 0) return casco;
+
+    // CUERPO: Debajo del casco
+    if (cy > -0.30f && cy <= 0.08f) {
+        return dibujarCuerpoDetallado(cx, cy);
+    }
+
     // PIERNAS
     if (cy <= -0.30f) {
         return dibujarPiernasDetalladas(cx, cy);
     }
-    
+
     return new ColorRGBA(0, 0, 0, 0);
 }
     /**

@@ -110,6 +110,25 @@ private Material materialObjetoCentral;   // Material del objeto central
 private com.jme3.input.InputManager inputManager;
 private com.jme3.input.controls.ActionListener mouseListener;
 private Runnable onClickBotonPausa;
+// ⭐ NUEVO: Variables para animaciones del astronauta
+private boolean astronautaEnError = false;
+private float tiempoError = 0f;
+private static final float DURACION_ERROR = 0.8f;
+
+// Flotación
+private float tiempoFlotacion = 0f;
+private static final float VELOCIDAD_FLOTACION = 1.5f;
+private static final float AMPLITUD_FLOTACION_X = 3f;
+private static final float AMPLITUD_FLOTACION_Y = 5f;
+
+// Temblor
+private boolean temblando = false;
+private float tiempoTemblor = 0f;
+private static final float DURACION_TEMBLOR = 0.3f;
+private static final float AMPLITUD_TEMBLOR = 8f;
+
+// Color original del astronauta
+private ColorRGBA colorOriginalAstronauta = new ColorRGBA(1.15f, 1.15f, 1.15f, 1.0f);
  // Callback para cuando se hace clic
     
     // Colores barra de vida
@@ -242,83 +261,155 @@ public void setOnClickBotonPausa(Runnable callback) {
 
     public void actualizarBrilloObjetoCentral(float tpf) {
     if (astronautaNode == null || materialAstronauta == null) return;
+
+    // ==================== FLOTACIÓN CONSTANTE ====================
+    tiempoFlotacion += tpf * VELOCIDAD_FLOTACION;
     
-    // ⭐ EFECTOS DE BRILLO (igual que antes)
-    if (brillandoEspacio) {
-        tiempoBrilloEspacio += tpf;
-        float duracionBrillo = 0.4f;
+    float offsetX = FastMath.sin(tiempoFlotacion) * AMPLITUD_FLOTACION_X;
+    float offsetY = FastMath.cos(tiempoFlotacion * 0.7f) * AMPLITUD_FLOTACION_Y;
+    
+    // ==================== ESTADO DE ERROR ====================
+    if (astronautaEnError) {
+        tiempoError += tpf;
         
-        if (tiempoBrilloEspacio < duracionBrillo) {
-            float progreso = tiempoBrilloEspacio / duracionBrillo;
-            float intensidad = 1.0f + (3.0f * (1.0f - progreso));
+        // ===== TEMBLOR =====
+        if (temblando && tiempoTemblor < DURACION_TEMBLOR) {
+            tiempoTemblor += tpf;
             
-            float r = intensidad;
-            float g = intensidad;
-            float b = intensidad + (3.0f * (1.0f - progreso));
+            // Temblor random
+            float shakeX = (FastMath.rand.nextFloat() * 2f - 1f) * AMPLITUD_TEMBLOR;
+            float shakeY = (FastMath.rand.nextFloat() * 2f - 1f) * AMPLITUD_TEMBLOR;
             
-            materialAstronauta.setColor("Color", new ColorRGBA(r, g, b, 1.0f));
+            offsetX += shakeX;
+            offsetY += shakeY;
+            
+            // Color rojo intenso
+            materialAstronauta.setColor("Color", new ColorRGBA(2.5f, 0.3f, 0.3f, 1.0f));
         } else {
-            brillandoEspacio = false;
-            materialAstronauta.setColor("Color", colorBaseObjetoCentral);
+            temblando = false;
         }
-    } else {
-        // Pulso constante
-        tiempoPulso += tpf * VELOCIDAD_PULSO;
-        float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
-        ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
-        materialAstronauta.setColor("Color", colorPulso);
+        
+        // ===== TRANSICIÓN DE VUELTA A NORMAL =====
+        if (tiempoError >= DURACION_ERROR) {
+            // Fade del rojo al color original
+            float factorRecuperacion = (tiempoError - DURACION_ERROR) / 0.2f;
+            factorRecuperacion = FastMath.clamp(factorRecuperacion, 0f, 1f);
+            
+            ColorRGBA colorRojo = new ColorRGBA(2.0f, 0.4f, 0.4f, 1.0f);
+            ColorRGBA colorActual = interpolarColor(colorRojo, colorOriginalAstronauta, factorRecuperacion);
+            materialAstronauta.setColor("Color", colorActual);
+            
+            if (factorRecuperacion >= 1.0f) {
+                astronautaEnError = false;
+                tiempoError = 0f;
+            }
+        }
+    }
+    // ==================== ESTADO NORMAL ====================
+    else {
+        // ===== BRILLO DE ESPACIO =====
+        if (brillandoEspacio) {
+            tiempoBrilloEspacio += tpf;
+            float duracionBrillo = 0.4f;
+            
+            if (tiempoBrilloEspacio < duracionBrillo) {
+                float progreso = tiempoBrilloEspacio / duracionBrillo;
+                float intensidad = 1.0f + (3.0f * (1.0f - progreso));
+                
+                float r = intensidad;
+                float g = intensidad;
+                float b = intensidad + (3.0f * (1.0f - progreso));
+                
+                materialAstronauta.setColor("Color", new ColorRGBA(r, g, b, 1.0f));
+            } else {
+                brillandoEspacio = false;
+                materialAstronauta.setColor("Color", colorOriginalAstronauta);
+            }
+        } 
+        // ===== PULSO CONSTANTE =====
+        else {
+            tiempoPulso += tpf * VELOCIDAD_PULSO;
+            float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
+            ColorRGBA colorPulso = colorOriginalAstronauta.mult(intensidadPulso);
+            materialAstronauta.setColor("Color", colorPulso);
+        }
     }
     
-    // ⭐ WIGGLE (mover el astronauta)
+    // ==================== APLICAR POSICIÓN FINAL ====================
+    astronautaNode.setLocalTranslation(
+        baseX + offsetX,
+        baseY + offsetY,
+        astronautaNode.getLocalTranslation().z
+    );
+
+    // ===== WIGGLE (movimiento especial - sin cambios) =====
     if (wiggleActivo) {
         tiempoWiggle += tpf;
         float fase = (tiempoWiggle / wiggleDuracion) * FastMath.TWO_PI;
-        float offsetX = wiggleAmplitud * FastMath.sin(fase);
-        float offsetY = 6f * FastMath.sin(fase * 2f) * 0.2f;
+        float offsetWiggleX = wiggleAmplitud * FastMath.sin(fase);
+        float offsetWiggleY = 6f * FastMath.sin(fase * 2f) * 0.2f;
         
         astronautaNode.setLocalTranslation(
-            baseX + offsetX, 
-            baseY + offsetY, 
+            baseX + offsetX + offsetWiggleX,
+            baseY + offsetY + offsetWiggleY,
             astronautaNode.getLocalTranslation().z
         );
         
         if (tiempoWiggle >= wiggleDuracion) {
             tiempoWiggle = 0f;
             wiggleRepeticiones--;
-            
             if (wiggleRepeticiones <= 0) {
                 wiggleActivo = false;
-                astronautaNode.setLocalTranslation(
-                    baseX, baseY, 
-                    astronautaNode.getLocalTranslation().z
-                );
             }
         }
-    } 
-    // ⭐ BAILE (mover suavemente)
+    }
+
+    // ===== BAILE (sin cambios) =====
     else if (baileActivo) {
         tiempoBaile += tpf;
         float progreso = tiempoBaile / baileDuracion;
         float fase = progreso * FastMath.TWO_PI;
         float ease = 0.5f - 0.5f * FastMath.cos(FastMath.PI * Math.min(1f, progreso));
         
-        float offsetX = baileAmplitudX * FastMath.sin(fase) * ease;
-        float offsetY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
+        float offsetBaileX = baileAmplitudX * FastMath.sin(fase) * ease;
+        float offsetBaileY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
         
         astronautaNode.setLocalTranslation(
-            baseX + offsetX, 
-            baseY + offsetY, 
+            baseX + offsetX + offsetBaileX,
+            baseY + offsetY + offsetBaileY,
             astronautaNode.getLocalTranslation().z
         );
         
         if (tiempoBaile >= baileDuracion) {
             baileActivo = false;
             tiempoBaile = 0f;
-            astronautaNode.setLocalTranslation(
-                baseX, baseY, 
-                astronautaNode.getLocalTranslation().z
-            );
         }
+    }
+}
+    public void activarAnimacionError() {
+    astronautaEnError = true;
+    temblando = true;
+    tiempoError = 0f;
+    tiempoTemblor = 0f;
+    
+    System.out.println("💥 ANIMACIÓN DE ERROR ACTIVADA - Astronauta tiembla y se pone rojo");
+}
+
+/**
+ * ⭐ NUEVO: Restaura el astronauta al estado normal inmediatamente
+ */
+public void restaurarAstronautaNormal() {
+    if (astronautaEnError) {
+        astronautaEnError = false;
+        temblando = false;
+        tiempoError = 0f;
+        tiempoTemblor = 0f;
+        
+        if (materialAstronauta != null) {
+            materialAstronauta.setColor("Color", colorOriginalAstronauta);
+        }
+        
+        System.out.println("✅ Astronauta restaurado a estado normal");
     }
 }
 
