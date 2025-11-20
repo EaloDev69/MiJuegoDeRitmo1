@@ -45,6 +45,7 @@ import com.jme3.texture.Texture2D;
 import com.jme3.util.BufferUtils;
 import com.jme3.texture.Image;
 import Modelo.FlechasGenerator.Difficulty;
+import Modelo.AstronautaGenerator;
 
 /**
  * GameplayAppState - Sistema de juego completo con mejoras visuales
@@ -61,6 +62,9 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
     // Referencias visuales
     private Geometry fondoGeometry;
     private Geometry protagonistaGeometry;
+    private Node astronautaNode;
+
+
     
     // Control del juego
     private boolean juegoTerminado = false;
@@ -148,6 +152,9 @@ public class GameplayAppState extends BaseAppState implements ActionListener {
 private boolean proteccionInicioActiva = true;
 private float tiempoProteccionInicio = 2.0f; // 2 segundos de protección
 private float tiempoDesdeInicio = 0f;
+
+private float ancho;  // Ancho de la ventana
+private float alto;   // Alto de la ventana
     
     // ==================== CONSTRUCTORES CORREGIDOS ====================
 
@@ -312,6 +319,25 @@ protected void initialize(Application app) {
         float altoVisible = alto * factorAmplificacion;
         app.getCamera().setFrustum(-1000, 1000, -aspect * altoVisible / 2, aspect * altoVisible / 2, altoVisible / 2, -altoVisible / 2);
     }
+    private void crearProtagonista() {
+    System.out.println("👨‍🚀 Creando astronauta protagonista...");
+    
+     float tamano = 200f;
+    float centroX = ancho / 2f - 40f; // Mismo ajuste que las zonas
+    float centroY = alto / 2f - 30f;
+    
+    AstronautaGenerator astronautaGen = new AstronautaGenerator(assetManager);
+    Node astronautaNode = astronautaGen.crearAstronauta(tamano);
+    
+    // Posicionar en el centro
+    float baseX = centroX - tamano/2;
+    float baseY = centroY - tamano/2;
+    astronautaNode.setLocalTranslation(baseX, baseY, 5);
+    
+    app.getGuiNode().attachChild(astronautaNode);
+    
+    System.out.println(" ✓ Astronauta creado en posición central");
+}
     
     private void crearFondo() {
         float ancho = app.getCamera().getWidth();
@@ -1780,7 +1806,6 @@ private void reintentarCancionActual() {
         gameNode.removeFromParent();
         System.out.println("⏸ GameplayAppState deshabilitado");
     }
-    private void crearProtagonista() {
-    System.out.println("✓ Objeto central gestionado por GameplayUI");
-}
+   
+
 }

@@ -28,6 +28,7 @@ import java.util.List;
 import com.jme3.math.Vector2f;
 import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.input.MouseInput;
+import Modelo.AstronautaGenerator;
 
 
 /**
@@ -50,8 +51,10 @@ public class GameplayUI {
     private Node uiRootNode;
     
     // ==================== OBJETO CENTRAL ====================
-    private Geometry objetoCentral;
-    private Material materialObjetoCentral;
+    private Node astronautaNode;
+    private Geometry astronautaGeometry;
+    private Material materialAstronauta;
+
     private float tiempoBrilloEspacio = 0f;
     private boolean brillandoEspacio = false;
     private ColorRGBA colorBaseObjetoCentral;
@@ -85,6 +88,9 @@ public class GameplayUI {
     
     private int vidaMaxima = 100;
     private int vidaActual = 100;
+    private Geometry objetoCentral;           // Referencia al objeto central
+private Material materialObjetoCentral;   // Material del objeto central
+
     
     // Feedback temporal
     private List<MensajeFeedback> mensajesFeedback;
@@ -156,62 +162,70 @@ public void setOnClickBotonPausa(Runnable callback) {
     // ==================== OBJETO CENTRAL ====================
     
     private void crearObjetoCentral() {
-        System.out.println("\n  ⭐ Creando objeto central...");
+    System.out.println("\n ⭐ Creando astronauta protagonista...");
+    
+    float tamano = 150f;
+    float centroX = ancho / 2f - 40f;
+    float centroY = alto / 2f - 30f;
+    
+    try {
+        // ⭐ USAR TU GENERADOR PROCEDURAL
+        AstronautaGenerator astronautaGen = new AstronautaGenerator(app.getAssetManager());
+        astronautaNode = astronautaGen.crearAstronauta(tamano);
         
-        float tamano = 150f;
-        float centroX = ancho / 2f - 40f;  // Mismo ajuste que las zonas
-        float centroY = alto / 2f - 30f;   // Mismo ajuste que las zonas
+        // Obtener la geometría del astronauta
+        astronautaGeometry = (Geometry) astronautaNode.getChild("AstronautaSprite");
+        materialAstronauta = astronautaGeometry.getMaterial();
         
-        String rutaTextura = "assets/Texture/Protagonista/astronautaPoseDefault.png";
+        // Guardar color base para efectos
+        colorBaseObjetoCentral = new ColorRGBA(1.1f, 1.1f, 1.1f, 1.0f);
         
-        try {
-            System.out.println("  → Cargando textura: " + rutaTextura);
-            
-            Texture texture = app.getAssetManager().loadTexture(rutaTextura);
-            
-            materialObjetoCentral = new Material(app.getAssetManager(),
-                "Common/MatDefs/Misc/Unshaded.j3md");
-            materialObjetoCentral.setTexture("ColorMap", texture);
-            materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-            
-            colorBaseObjetoCentral = new ColorRGBA(1.1f, 1.1f, 1.1f, 1.0f);
-            materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
-            
-            objetoCentral = new Geometry("ObjetoCentral", new Quad(tamano, tamano));
-            objetoCentral.setMaterial(materialObjetoCentral);
-            baseX = centroX - tamano/2;
-            baseY = centroY - tamano/2;
-            objetoCentral.setLocalTranslation(baseX, baseY, 5);
-            
-            uiRootNode.attachChild(objetoCentral);
-            
-            System.out.println("  ✓ Objeto central creado exitosamente");
-            
-        } catch (Exception e) {
-            System.err.println("  ❌ Error cargando textura: " + e.getMessage());
-            System.err.println("  ⚠ Creando objeto central de respaldo...");
-            crearObjetoCentralFallback(centroX, centroY, tamano);
-        }
-    }
-
-    private void crearObjetoCentralFallback(float centroX, float centroY, float tamano) {
-        materialObjetoCentral = new Material(app.getAssetManager(),
-            "Common/MatDefs/Misc/Unshaded.j3md");
-        
-        colorBaseObjetoCentral = new ColorRGBA(1.2f, 1.2f, 1.4f, 0.9f);
-        materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
-        materialObjetoCentral.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-        
-        objetoCentral = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
-        objetoCentral.setMaterial(materialObjetoCentral);
+        // Posicionar
         baseX = centroX - tamano/2;
         baseY = centroY - tamano/2;
-        objetoCentral.setLocalTranslation(baseX, baseY, 5);
+        astronautaNode.setLocalTranslation(baseX, baseY, 5);
         
-        uiRootNode.attachChild(objetoCentral);
+        // Agregar a la UI
+        uiRootNode.attachChild(astronautaNode);
         
-        System.out.println("  ✓ Objeto central de respaldo creado (cuadrado brillante)");
+        System.out.println(" ✓ Astronauta creado exitosamente");
+        System.out.println("   Posición: (" + baseX + ", " + baseY + ")");
+        
+    } catch (Exception e) {
+        System.err.println(" ❌ Error creando astronauta: " + e.getMessage());
+        crearObjetoCentralFallback(centroX, centroY, tamano);
     }
+}
+
+
+    private void crearObjetoCentralFallback(float centroX, float centroY, float tamano) {
+    materialAstronauta = new Material(app.getAssetManager(),
+            "Common/MatDefs/Misc/Unshaded.j3md");
+    
+    colorBaseObjetoCentral = new ColorRGBA(1.2f, 1.2f, 1.4f, 0.9f);
+    materialAstronauta.setColor("Color", colorBaseObjetoCentral);
+    materialAstronauta.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+    
+    // ⭐ CREAR GEOMETRÍA DE RESPALDO
+    Geometry geometriaFallback = new Geometry("ObjetoCentral-Fallback", new Quad(tamano, tamano));
+    geometriaFallback.setMaterial(materialAstronauta);
+    
+    baseX = centroX - tamano/2;
+    baseY = centroY - tamano/2;
+    geometriaFallback.setLocalTranslation(baseX, baseY, 5);
+    
+    // ⭐ CREAR NODO Y ADJUNTAR LA GEOMETRÍA
+    astronautaNode = new Node("AstronautaFallback");
+    astronautaNode.attachChild(geometriaFallback);
+    astronautaNode.setLocalTranslation(baseX, baseY, 5);
+    
+    // ⭐ GUARDAR REFERENCIA A LA GEOMETRÍA
+    astronautaGeometry = geometriaFallback;
+    
+    uiRootNode.attachChild(astronautaNode);
+    
+    System.out.println(" ✓ Objeto central de respaldo creado (cuadrado brillante)");
+}
 
     // ==================== SISTEMA DE BRILLO ====================
     
@@ -227,72 +241,98 @@ public void setOnClickBotonPausa(Runnable callback) {
     }
 
     public void actualizarBrilloObjetoCentral(float tpf) {
-        if (objetoCentral == null || materialObjetoCentral == null) return;
+    if (astronautaNode == null || materialAstronauta == null) return;
+    
+    // ⭐ EFECTOS DE BRILLO (igual que antes)
+    if (brillandoEspacio) {
+        tiempoBrilloEspacio += tpf;
+        float duracionBrillo = 0.4f;
         
-        if (brillandoEspacio) {
-            tiempoBrilloEspacio += tpf;
-            float duracionBrillo = 0.4f;
+        if (tiempoBrilloEspacio < duracionBrillo) {
+            float progreso = tiempoBrilloEspacio / duracionBrillo;
+            float intensidad = 1.0f + (3.0f * (1.0f - progreso));
             
-            if (tiempoBrilloEspacio < duracionBrillo) {
-                float progreso = tiempoBrilloEspacio / duracionBrillo;
-                float intensidad = 1.0f + (3.0f * (1.0f - progreso));
-                
-                float r = intensidad;
-                float g = intensidad;
-                float b = intensidad + (3.0f * (1.0f - progreso));
-                
-                materialObjetoCentral.setColor("Color", new ColorRGBA(r, g, b, 1.0f));
-            } else {
-                brillandoEspacio = false;
-                materialObjetoCentral.setColor("Color", colorBaseObjetoCentral);
-            }
+            float r = intensidad;
+            float g = intensidad;
+            float b = intensidad + (3.0f * (1.0f - progreso));
+            
+            materialAstronauta.setColor("Color", new ColorRGBA(r, g, b, 1.0f));
         } else {
-            tiempoPulso += tpf * VELOCIDAD_PULSO;
-            float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
-            ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
-            materialObjetoCentral.setColor("Color", colorPulso);
+            brillandoEspacio = false;
+            materialAstronauta.setColor("Color", colorBaseObjetoCentral);
         }
-
-        if (wiggleActivo) {
-            tiempoWiggle += tpf;
-            float fase = (tiempoWiggle / wiggleDuracion) * FastMath.TWO_PI;
-            float offsetX = wiggleAmplitud * FastMath.sin(fase);
-            float offsetY = 6f * FastMath.sin(fase * 2f) * 0.2f;
-            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
-            if (tiempoWiggle >= wiggleDuracion) {
-                tiempoWiggle = 0f;
-                wiggleRepeticiones--;
-                if (wiggleRepeticiones <= 0) {
-                    wiggleActivo = false;
-                    objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
-                }
+    } else {
+        // Pulso constante
+        tiempoPulso += tpf * VELOCIDAD_PULSO;
+        float intensidadPulso = 1.0f + 0.15f * FastMath.sin(tiempoPulso);
+        ColorRGBA colorPulso = colorBaseObjetoCentral.mult(intensidadPulso);
+        materialAstronauta.setColor("Color", colorPulso);
+    }
+    
+    // ⭐ WIGGLE (mover el astronauta)
+    if (wiggleActivo) {
+        tiempoWiggle += tpf;
+        float fase = (tiempoWiggle / wiggleDuracion) * FastMath.TWO_PI;
+        float offsetX = wiggleAmplitud * FastMath.sin(fase);
+        float offsetY = 6f * FastMath.sin(fase * 2f) * 0.2f;
+        
+        astronautaNode.setLocalTranslation(
+            baseX + offsetX, 
+            baseY + offsetY, 
+            astronautaNode.getLocalTranslation().z
+        );
+        
+        if (tiempoWiggle >= wiggleDuracion) {
+            tiempoWiggle = 0f;
+            wiggleRepeticiones--;
+            
+            if (wiggleRepeticiones <= 0) {
+                wiggleActivo = false;
+                astronautaNode.setLocalTranslation(
+                    baseX, baseY, 
+                    astronautaNode.getLocalTranslation().z
+                );
             }
-        } else if (baileActivo) {
-            tiempoBaile += tpf;
-            float progreso = tiempoBaile / baileDuracion;
-            float fase = progreso * FastMath.TWO_PI;
-            float ease = 0.5f - 0.5f * FastMath.cos(FastMath.PI * Math.min(1f, progreso));
-            float offsetX = baileAmplitudX * FastMath.sin(fase) * ease;
-            float offsetY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
-            objetoCentral.setLocalTranslation(baseX + offsetX, baseY + offsetY, objetoCentral.getLocalTranslation().z);
-            if (tiempoBaile >= baileDuracion) {
-                baileActivo = false;
-                tiempoBaile = 0f;
-                objetoCentral.setLocalTranslation(baseX, baseY, objetoCentral.getLocalTranslation().z);
-            }
+        }
+    } 
+    // ⭐ BAILE (mover suavemente)
+    else if (baileActivo) {
+        tiempoBaile += tpf;
+        float progreso = tiempoBaile / baileDuracion;
+        float fase = progreso * FastMath.TWO_PI;
+        float ease = 0.5f - 0.5f * FastMath.cos(FastMath.PI * Math.min(1f, progreso));
+        
+        float offsetX = baileAmplitudX * FastMath.sin(fase) * ease;
+        float offsetY = baileAmplitudY * FastMath.sin(fase * 0.5f) * 0.6f * ease;
+        
+        astronautaNode.setLocalTranslation(
+            baseX + offsetX, 
+            baseY + offsetY, 
+            astronautaNode.getLocalTranslation().z
+        );
+        
+        if (tiempoBaile >= baileDuracion) {
+            baileActivo = false;
+            tiempoBaile = 0f;
+            astronautaNode.setLocalTranslation(
+                baseX, baseY, 
+                astronautaNode.getLocalTranslation().z
+            );
         }
     }
+}
 
     public void activarBrilloHit(ColorRGBA colorFlecha) {
-        if (materialObjetoCentral == null) return;
-        
-        ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha).mult(0.7f);
-        colorMezclado.a = 1.0f;
-        
-        materialObjetoCentral.setColor("Color", colorMezclado);
-        
-        System.out.println("💫 Hit registrado - Brillo de color");
-    }
+    if (materialAstronauta == null) return;
+    
+    // Mezclar color del astronauta con el de la flecha
+    ColorRGBA colorMezclado = colorBaseObjetoCentral.add(colorFlecha).mult(0.7f);
+    colorMezclado.a = 1.0f;
+    
+    materialAstronauta.setColor("Color", colorMezclado);
+    
+    System.out.println("💫 Astronauta brillando con color de hit");
+}
 
     public void activarWiggleEspacio(int repeticiones) {
         wiggleActivo = true;
@@ -1176,25 +1216,27 @@ public void mostrarFeedback(String mensaje, ColorRGBA color) {
     System.out.println("🧹 Limpiando GameplayUI...");
     
     ocultarTemporalmente();
-
+    
+    // Limpiar mensajes
     for (MensajeFeedback msg : mensajesFeedback) {
         if (msg.texto.getParent() != null) {
             msg.texto.removeFromParent();
         }
     }
     mensajesFeedback.clear();
-
-    if (objetoCentral != null) {
-        objetoCentral.removeFromParent();
-        objetoCentral = null;
+    
+    // ⭐ LIMPIAR ASTRONAUTA
+    if (astronautaNode != null) {
+        astronautaNode.removeFromParent();
+        astronautaNode = null;
     }
-
+    
     if (uiRootNode != null) {
         uiRootNode.detachAllChildren();
         uiRootNode = null;
     }
-
-    // ⭐ NUEVO: Limpiar listener de mouse
+    
+    // Limpiar listener de mouse
     if (mouseListener != null && inputManager != null) {
         try {
             inputManager.removeListener(mouseListener);
@@ -1204,7 +1246,7 @@ public void mostrarFeedback(String mensaje, ColorRGBA color) {
             System.err.println(" ⚠ Error limpiando listener: " + e.getMessage());
         }
     }
-
+    
     System.out.println("✓ GameplayUI limpiado");
 }
 
